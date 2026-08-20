@@ -1,0 +1,412 @@
+<!--
+  Example ERDDAP datasets.xml entries for the OGF (University of Bergen) glider
+  data server, Option A: one dataset per mission per processing level.
+
+  CORRECTED VERSION -- the first draft of this file used uppercase short
+  codes (TEMP, PSAL, CNDC, DOXY, CHLA, TRAJECTORY) pulled from the OG1.0
+  format spec document (SL_processing/OG1/OG-format-user-manual/). That spec
+  is real, but it's not what actually comes out of the pipeline: pyglider is
+  installed in several of your own venvs (0.0.7, e.g.
+  SL_processing/working/pyglider), and its source code
+  (pyglider/utils.py, pyglider/ncprocess.py, and the example
+  deployment*.yml configs under tests/example-data/example-slocum/) shows it
+  emits lowercase, CF-standard-name-derived variable names -- not the OG1
+  spec's uppercase codes. This matches VOTO's real production ERDDAP
+  exactly (see projects/voto_erddap_data_cache/cache_info.csv --
+  "temperature,chlorophyll,salinity,oxygen_concentration,potential_density"
+  etc. in their actual tabledap URLs), which makes sense since VOTO's
+  glider processing is one of pyglider's original use cases. Rewritten
+  below against that verified, real-world convention instead.
+
+  Two things to actually confirm once real OGDP output exists, rather than
+  trust either source blindly:
+  - Which pyglider version OGDP pins (0.0.7 here; a newer version might add
+    an explicit OG1-compliant export step with different naming -- if so,
+    this file just needs a mechanical rename, not a redesign).
+  - Whether OGDP's own processing adds/renames anything on top of raw
+    pyglider output before a file is considered "L1".
+
+  These are templates, not final config -- see the notes at the bottom for
+  how to generate the other ~150-200 entries you'll actually need instead
+  of hand-writing them.
+-->
+<erddapDatasets>
+
+  <!-- ============================================================
+       L1 -- processed timeseries (tabledap, CF DiscreteSamplingGeometry
+       "trajectory" featureType -- irregular along-track sampling, one
+       row per measurement). This is the fully worked example; L0 is
+       identical in shape (see note after it).
+       ============================================================ -->
+  <dataset type="EDDTableFromNcCFFiles" datasetID="l1_durin_20240614T090000" active="true">
+
+    <!-- Once a day is plenty for delayed-mode/L1 files that don't change
+         after processing finishes. Drop this a lot lower (e.g. 60) for
+         whichever mission is currently live, if you're also serving NRT L0. -->
+    <reloadEveryNMinutes>1440</reloadEveryNMinutes>
+
+    <!-- Points straight at wherever OGDP writes this mission's L1 output --
+         no copying/loading step, ERDDAP just reads the files in place. -->
+    <fileDir>/data/ogdp/processed/L1/durin_20240614T090000/</fileDir>
+    <fileNameRegex>.*\.nc</fileNameRegex>
+    <recursive>false</recursive>
+    <pathRegex>.*</pathRegex>
+    <metadataFrom>last</metadataFrom>
+    <standardizeWhat>0</standardizeWhat>
+    <sortedColumnSourceName>time</sortedColumnSourceName>
+    <sortFilesBySourceNames>time</sortFilesBySourceNames>
+    <fileTableInMemory>false</fileTableInMemory>
+
+    <addAttributes>
+      <att name="cdm_data_type">Trajectory</att>
+      <att name="cdm_trajectory_variables">trajectory</att>
+      <!-- subsetVariables drives the "distinct combinations" convenience
+           picker in ERDDAP's web UI -- harmless with one trajectory per
+           dataset, becomes genuinely useful if you ever build an
+           aggregated multi-mission dataset on top of these later. -->
+      <att name="subsetVariables">trajectory</att>
+      <att name="Conventions">CF-1.10, ACDD-1.3</att>
+      <att name="featureType">trajectory</att>
+      <att name="infoUrl">https://ogf.uib.no</att>
+      <att name="institution">University of Bergen, Ocean Glider Facility</att>
+      <att name="sourceUrl">(local files)</att>
+      <att name="title">Durin (Slocum G3) mission 2024-06-14 -- L1 processed timeseries</att>
+      <att name="summary">Processed (L1) timeseries from Slocum glider "Durin", mission starting 2024-06-14T09:00:00Z. Sensor timeseries interpolated to a common time base; QC flags applied per variable.</att>
+      <!-- Optional but worth it: tag the region as free-standing metadata,
+           NOT as a grouping decision -- see the "region tags" discussion.
+           Any bounding box a researcher draws will work with or without
+           this; this just also makes the mission show up under ERDDAP's
+           Categorize-by-region browse page. -->
+      <att name="region">iceland_sea</att>
+    </addAttributes>
+
+    <!-- pyglider (ncprocess.py) writes this itself: dss['trajectory'],
+         cf_role='trajectory_id', long_name='Trajectory/Deployment Name'.
+         Already lowercase in the source file -- no rename needed. -->
+    <dataVariable>
+      <sourceName>trajectory</sourceName>
+      <destinationName>trajectory</destinationName>
+      <dataType>String</dataType>
+      <addAttributes>
+        <att name="cf_role">trajectory_id</att>
+        <att name="ioos_category">Identifier</att>
+        <att name="long_name">Trajectory/Deployment Name</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>time</sourceName>
+      <destinationName>time</destinationName>
+      <dataType>double</dataType>
+      <addAttributes>
+        <att name="units">seconds since 1970-01-01T00:00:00Z</att>
+        <att name="standard_name">time</att>
+        <att name="ioos_category">Time</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>latitude</sourceName>
+      <destinationName>latitude</destinationName>
+      <dataType>double</dataType>
+      <addAttributes>
+        <att name="units">degrees_north</att>
+        <att name="standard_name">latitude</att>
+        <att name="ioos_category">Location</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>longitude</sourceName>
+      <destinationName>longitude</destinationName>
+      <dataType>double</dataType>
+      <addAttributes>
+        <att name="units">degrees_east</att>
+        <att name="standard_name">longitude</att>
+        <att name="ioos_category">Location</att>
+      </addAttributes>
+    </dataVariable>
+
+    <!-- pyglider computes depth from pressure via TEOS-10 (utils.get_glider_depth),
+         standard_name 'depth', positive down. -->
+    <dataVariable>
+      <sourceName>depth</sourceName>
+      <destinationName>depth</destinationName>
+      <dataType>double</dataType>
+      <addAttributes>
+        <att name="units">m</att>
+        <att name="standard_name">depth</att>
+        <att name="ioos_category">Location</att>
+      </addAttributes>
+    </dataVariable>
+
+    <!-- ---- geophysical variables: names verified against
+         pyglider/tests/example-data/example-slocum/deploymentRealtime.yml
+         (netcdf_variables block) and cross-checked against VOTO's real
+         production ERDDAP URLs in voto_erddap_data_cache/cache_info.csv ---- -->
+
+    <dataVariable>
+      <sourceName>pressure</sourceName>
+      <destinationName>pressure</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">dbar</att>
+        <att name="standard_name">sea_water_pressure</att>
+        <att name="long_name">water pressure</att>
+        <att name="ioos_category">Pressure</att>
+        <att name="ancillary_variables">pressure_qc</att>
+        <att name="instrument">instrument_ctd</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>temperature</sourceName>
+      <destinationName>temperature</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">Celsius</att>
+        <att name="standard_name">sea_water_temperature</att>
+        <att name="long_name">water temperature</att>
+        <att name="ioos_category">Temperature</att>
+        <att name="ancillary_variables">temperature_qc</att>
+        <att name="instrument">instrument_ctd</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>conductivity</sourceName>
+      <destinationName>conductivity</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">S m-1</att>
+        <att name="standard_name">sea_water_electrical_conductivity</att>
+        <att name="long_name">water conductivity</att>
+        <att name="ioos_category">Salinity</att>
+        <att name="ancillary_variables">conductivity_qc</att>
+        <att name="instrument">instrument_ctd</att>
+      </addAttributes>
+    </dataVariable>
+
+    <!-- Derived by pyglider.utils.get_derived_eos_raw (gsw/TEOS-10), not a
+         raw sensor reading -- not present until that processing step runs. -->
+    <dataVariable>
+      <sourceName>salinity</sourceName>
+      <destinationName>salinity</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">1</att>
+        <att name="standard_name">sea_water_practical_salinity</att>
+        <att name="long_name">water salinity</att>
+        <att name="ioos_category">Salinity</att>
+        <att name="ancillary_variables">salinity_qc</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>potential_density</sourceName>
+      <destinationName>potential_density</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">kg m-3</att>
+        <att name="standard_name">sea_water_potential_density</att>
+        <att name="long_name">water potential density</att>
+        <att name="ioos_category">Physical Oceanography</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>chlorophyll</sourceName>
+      <destinationName>chlorophyll</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">mg m-3</att>
+        <att name="standard_name">concentration_of_chlorophyll_in_sea_water</att>
+        <att name="long_name">chlorophyll</att>
+        <att name="ioos_category">Ocean Color</att>
+        <att name="ancillary_variables">chlorophyll_qc</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>oxygen_concentration</sourceName>
+      <destinationName>oxygen_concentration</destinationName>
+      <dataType>float</dataType>
+      <addAttributes>
+        <att name="units">umol l-1</att>
+        <att name="standard_name">mole_concentration_of_dissolved_molecular_oxygen_in_sea_water</att>
+        <att name="long_name">oxygen concentration</att>
+        <att name="ioos_category">Dissolved O2</att>
+        <att name="ancillary_variables">oxygen_concentration_qc</att>
+      </addAttributes>
+    </dataVariable>
+
+    <!-- ---- QC companion variables: pyglider's own convention
+         (utils.fill_required_qcattrs), NOT the OG1 spec's 0-4 scheme --
+         flag_values are QARTOD-style [1,2,3,4,9]. ---- -->
+
+    <dataVariable>
+      <sourceName>temperature_qc</sourceName>
+      <destinationName>temperature_qc</destinationName>
+      <dataType>byte</dataType>
+      <addAttributes>
+        <att name="long_name">Initial flag for temperature</att>
+        <att name="standard_name">quality_flag</att>
+        <att name="flag_values" type="byteList">1 2 3 4 9</att>
+        <att name="flag_meanings">PASS NOT_EVALUATED SUSPECT FAIL MISSING</att>
+        <att name="valid_min" type="byte">1</att>
+        <att name="valid_max" type="byte">9</att>
+        <att name="ioos_category">Quality</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>salinity_qc</sourceName>
+      <destinationName>salinity_qc</destinationName>
+      <dataType>byte</dataType>
+      <addAttributes>
+        <att name="long_name">Initial flag for salinity</att>
+        <att name="standard_name">quality_flag</att>
+        <att name="flag_values" type="byteList">1 2 3 4 9</att>
+        <att name="flag_meanings">PASS NOT_EVALUATED SUSPECT FAIL MISSING</att>
+        <att name="valid_min" type="byte">1</att>
+        <att name="valid_max" type="byte">9</att>
+        <att name="ioos_category">Quality</att>
+      </addAttributes>
+    </dataVariable>
+
+    <!-- ... repeat for pressure_qc, conductivity_qc, chlorophyll_qc,
+         oxygen_concentration_qc -- same pattern, only varname/long_name change ... -->
+
+  </dataset>
+
+
+  <!-- ============================================================
+       L0 -- raw timeseries. Structurally identical to L1 above (same
+       tabledap/trajectory shape) -- only these things change:
+         - fileDir points at the L0 output tree instead of L1
+         - datasetID prefix l0_ instead of l1_
+         - reloadEveryNMinutes is much shorter while a mission is live
+           (raw files land in near-real-time), e.g. 30-60
+         - salinity/potential_density/density and the _qc variables are
+           typically absent at this stage -- they're produced by later
+           pyglider processing steps (get_derived_eos_raw, QC pass), not
+           present in raw output. Drop those <dataVariable> blocks for L0.
+       Copy the L1 block above, change those things, done.
+       ============================================================ -->
+
+
+  <!-- ============================================================
+       L2 -- gridded product (griddap, true regular time x depth grid --
+       this is pyglider's gridded output, a genuinely different shape
+       from L0/L1's irregular along-track sampling).
+       ============================================================ -->
+  <dataset type="EDDGridFromNcFiles" datasetID="l2_durin_20240614T090000" active="true">
+
+    <reloadEveryNMinutes>1440</reloadEveryNMinutes>
+    <fileDir>/data/ogdp/processed/L2/durin_20240614T090000/</fileDir>
+    <fileNameRegex>.*\.nc</fileNameRegex>
+    <recursive>false</recursive>
+    <metadataFrom>last</metadataFrom>
+
+    <addAttributes>
+      <att name="Conventions">CF-1.10, ACDD-1.3</att>
+      <att name="infoUrl">https://ogf.uib.no</att>
+      <att name="institution">University of Bergen, Ocean Glider Facility</att>
+      <att name="title">Durin (Slocum G3) mission 2024-06-14 -- L2 gridded product</att>
+      <att name="summary">Gridded (time x depth) product from Slocum glider "Durin", mission starting 2024-06-14T09:00:00Z.</att>
+      <att name="region">iceland_sea</att>
+    </addAttributes>
+
+    <!-- griddap axis order must match the file's actual dimension order --
+         confirm this against a real L2 file before trusting it verbatim.
+         Note: pyglider's own ncprocess.py grid/profile intermediate uses
+         featureType='trajectoryProfile' with cf_role='profile_id' on a
+         'profile' variable and cf_role='trajectory_id' on 'mission_number'
+         -- if OGDP's L2 output is built from that path rather than a
+         straight time x depth regrid, this axis/variable list needs
+         checking against the real file, not assumed from L1's shape. -->
+    <axisVariable>
+      <sourceName>time</sourceName>
+      <destinationName>time</destinationName>
+      <addAttributes>
+        <att name="units">seconds since 1970-01-01T00:00:00Z</att>
+        <att name="standard_name">time</att>
+      </addAttributes>
+    </axisVariable>
+
+    <axisVariable>
+      <sourceName>depth</sourceName>
+      <destinationName>depth</destinationName>
+      <addAttributes>
+        <att name="units">m</att>
+        <att name="standard_name">depth</att>
+      </addAttributes>
+    </axisVariable>
+
+    <dataVariable>
+      <sourceName>temperature</sourceName>
+      <destinationName>temperature</destinationName>
+      <addAttributes>
+        <att name="units">Celsius</att>
+        <att name="standard_name">sea_water_temperature</att>
+        <att name="ioos_category">Temperature</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>salinity</sourceName>
+      <destinationName>salinity</destinationName>
+      <addAttributes>
+        <att name="units">1</att>
+        <att name="standard_name">sea_water_practical_salinity</att>
+        <att name="ioos_category">Salinity</att>
+      </addAttributes>
+    </dataVariable>
+
+    <dataVariable>
+      <sourceName>chlorophyll</sourceName>
+      <destinationName>chlorophyll</destinationName>
+      <addAttributes>
+        <att name="units">mg m-3</att>
+        <att name="standard_name">concentration_of_chlorophyll_in_sea_water</att>
+        <att name="ioos_category">Ocean Color</att>
+      </addAttributes>
+    </dataVariable>
+
+  </dataset>
+
+</erddapDatasets>
+
+<!--
+  NOTES -- how to actually get from this to ~150-200 real entries:
+
+  1. Don't hand-write these. ERDDAP ships a GenerateDatasetsXml.sh tool
+     (webapps/erddap/WEB-INF/ once installed) that introspects one real
+     sample file and generates ~90% of a <dataset> block automatically --
+     axis/data variables, dtypes, source attributes. Run it against one
+     real OGDP-produced L0, one L1, and one L2 file once you have them,
+     and diff its output against this template. It's generally good at
+     variables/dtypes and generally bad at cf_role/cdm_data_type/
+     subsetVariables for CF-DSG trajectory files -- those three are the
+     ones worth checking by hand every time.
+
+  2. Once the per-mission template is right, generating one <dataset>
+     block per mission x level is a scripting problem, not a hand-editing
+     one -- e.g. a small Python script templated with Jinja2, reading
+     mission id / start date / platform serial straight out of OGDB's
+     missions table, writing one datasets.xml fragment per row. Natural
+     home for that script would be alongside OGDP's other pipeline
+     tooling, run as the last step after a mission's L0/L1/L2 files land.
+
+  3. `datasetID` here follows VOTO's nrt_/delayed_ convention, adapted to
+     your three levels (l0_/l1_/l2_) plus a <platform_serial>_<start_date>
+     mission id. Whatever exact convention you pick, keep it mechanically
+     derived from the mission id already in OGDB rather than invented
+     per-file, same reasoning as the detail-table naming rule in OGDB's
+     design notes.
+
+  4. Before trusting this file against real data: run it through
+     `xmllint --noout datasets.xml` (or ERDDAP's own startup log) once
+     installed -- this has been hand-edited twice now and hasn't been
+     validated against a real ERDDAP instance yet.
+-->
