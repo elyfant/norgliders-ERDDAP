@@ -1,11 +1,26 @@
 services:
   erddap:
-    image: axiom/docker-erddap:latest
+    # Pinned, not :latest -- this is a public-facing box; image changes
+    # should be a deliberate version bump + review, not something that
+    # silently lands on the next `docker compose pull`. v2.30.0 is what
+    # was actually verified working end-to-end (see design-notes.md).
+    image: axiom/docker-erddap:v2.30.0
     container_name: erddap
     restart: unless-stopped
+    # Hard memory cap. Without this, the JVM sizes its heap off the HOST's
+    # full RAM (confirmed in logs: Xmx ~= 3025 MB on this ~3.8GB box before
+    # this limit existed) -- almost nothing left for the OS/Caddy/Docker
+    # itself, so one heavy public request risked the OOM killer taking down
+    # the whole instance, not just this container. With the limit set, the
+    # JVM (cgroup-aware) sizes ERDDAP_MAX_RAM_PERCENTAGE off THIS number
+    # instead of the host total.
+    deploy:
+      resources:
+        limits:
+          memory: 2500M
     environment:
-      # Heap sized as a % of whatever RAM Docker gives the container, so it
-      # tracks the host flavor automatically rather than a hardcoded value.
+      # Heap sized as a % of the container's memory limit above (~2GB),
+      # not the host total.
       ERDDAP_MAX_RAM_PERCENTAGE: "80"
       ERDDAP_bigParentDirectory: /erddapData/
       # Placeholder until a real domain is pointed at this server -- see

@@ -284,6 +284,43 @@ defaults) — cosmetic log noise, not a functional issue. Worth either
 configuring real SMTP via `ERDDAP_email*` env vars or explicitly disabling
 it at some point, just to quiet the logs.
 
+### Security hardening (2026-08-23)
+
+ERDDAP here is deliberately public and unauthenticated — that's correct for
+its purpose (published glider data, same model as VOTO's ERDDAP), not a
+gap. Hardening focused on what's actually appropriate given that: supply
+chain and resource limits, not access control.
+
+- **Image pinned to `axiom/docker-erddap:v2.30.0`**, not `:latest`. On a
+  public-facing box, an unpinned tag means the next `docker compose pull`
+  silently changes what's running — version bumps should be a deliberate,
+  reviewed action instead.
+- **Container memory limit added (`2500M`)** for the `erddap` service.
+  Checked first, rather than assumed: pulled ERDDAP's own `setup.xml`
+  request-throttling settings I'd planned to tune
+  (`requestsPerMinute`, `partialRequestMaxBytes`, etc.) directly off the
+  *live running container* to verify against the real file rather than
+  trust search results — **none of those tags exist in ERDDAP 2.30.0's
+  setup.xml at all**; that search result was simply wrong. Pivoted to what
+  actually is real and available: without a memory limit, the JVM sizes
+  its heap off the *host's* full RAM (confirmed in logs pre-fix:
+  `Xmx ~= 3025 MB` on a ~3.8GB box) — almost nothing left for the OS,
+  Caddy, or Docker itself, so one heavy public query risked the OOM killer
+  taking down the whole instance, not just the container. With the limit
+  set, `ERDDAP_MAX_RAM_PERCENTAGE=80` now computes off that 2.5GB ceiling
+  instead of the host total (cgroup-aware JVM), leaving real headroom.
+- **SSH security group scope not independently confirmed** — can't check
+  from inside the guest (enforced at the network layer, not visible via
+  SSH). Worth confirming in the NREC dashboard that whatever group covers
+  port 22 is genuinely restricted, not `0.0.0.0/0` — matters more than
+  usual here since the `ubuntu` user is in the `docker` group (root-
+  equivalent via the Docker socket), so SSH key compromise = box compromise.
+- Not done: Caddy-level rate limiting. Would require a custom Caddy build
+  (the rate-limit module isn't in the stock `caddy:2-alpine` image) — a
+  bigger lift than the memory cap above, and lower priority given the
+  memory limit already bounds the worst case. Worth revisiting if actual
+  abuse/scraping traffic becomes a real pattern once this is public.
+
 ## Next steps
 
 1. ~~Provision the NREC instance~~ — done (`m1.medium`, dualStack).
