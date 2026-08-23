@@ -29,6 +29,17 @@
   These are templates, not final config -- see the notes at the bottom for
   how to generate the other ~150-200 entries you'll actually need instead
   of hand-writing them.
+
+  DEPLOYMENT NOTE: the axiom/docker-erddap image (see docker-compose.yml at
+  the repo root) uses "datasets.d" mode -- individual dataset fragments,
+  one per file, in erddap-config/datasets.d/, each a bare <dataset>...
+  </dataset> block with NO <erddapDatasets> wrapper (the image concatenates
+  them at container start). This file stays as the annotated reference
+  copy with the full reasoning; the two dataset blocks below have been
+  split out as the actual deployed fragments at
+  erddap-config/datasets.d/l1_durin_20240614T090000.xml and
+  .../l2_durin_20240614T090000.xml. Edit fragments there for real changes;
+  keep this file in sync for the explanatory comments.
 -->
 <erddapDatasets>
 

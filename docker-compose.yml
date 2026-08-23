@@ -1,0 +1,58 @@
+services:
+  erddap:
+    image: axiom/docker-erddap:latest
+    container_name: erddap
+    restart: unless-stopped
+    environment:
+      # Heap sized as a % of whatever RAM Docker gives the container, so it
+      # tracks the host flavor automatically rather than a hardcoded value.
+      ERDDAP_MAX_RAM_PERCENTAGE: "80"
+      ERDDAP_bigParentDirectory: /erddapData/
+      # Placeholder until a real domain is pointed at this server -- see
+      # the Caddyfile note. Update both together once DNS exists.
+      ERDDAP_baseUrl: http://158.39.77.95
+      # Datasets removed from datasets.d get flagged inactive automatically
+      # instead of erroring on next reload.
+      DATASETSD_MARK_REMOVED_DATASETS_INACTIVE: "1"
+    volumes:
+      # All four of these are BIND MOUNTS to explicit host paths under
+      # /data -- deliberately not bare named volumes. /data is meant to be
+      # the mount point of a separate Cinder block volume (see
+      # design-notes.md), so growing that volume later requires zero
+      # changes here: the host path stays the same, only what's backing it
+      # changes. Using named volumes instead would put this data under
+      # /var/lib/docker on the 20GB root disk by default -- exactly the
+      # trap this setup avoids.
+      - /data/erddap/content:/usr/local/tomcat/content/erddap
+      - /data/erddap/erddapData:/erddapData
+      - /data/erddap/datasets.d:/datasets.d:ro
+      - /data/ogdp/processed:/data/ogdp/processed:ro
+    expose:
+      - "8080"
+    networks:
+      - erddap_net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Caddy's own state (certs, small metadata) -- not science data, so
+      # ordinary named volumes are fine here, unlike the erddap service above.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - erddap
+    networks:
+      - erddap_net
+
+networks:
+  erddap_net:
+
+volumes:
+  caddy_data:
+  caddy_config:

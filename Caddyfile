@@ -1,0 +1,17 @@
+# No domain name is pointed at this server yet, so this serves plain HTTP
+# on the bare IP -- Caddy's automatic HTTPS needs a real hostname to get a
+# Let's Encrypt cert (it won't issue one for a bare IP address).
+#
+# Once a domain exists (e.g. via NREC's DNS service, or a uib.no subdomain)
+# pointed at 158.39.77.95, switch this to:
+#
+#   erddap.yourdomain.no {
+#       reverse_proxy erddap:8080
+#   }
+#
+# and update ERDDAP_baseUrl / add ERDDAP_baseHttpsUrl in docker-compose.yml
+# to match -- Caddy will then get and renew the cert automatically.
+
+:80 {
+    reverse_proxy erddap:8080
+}
