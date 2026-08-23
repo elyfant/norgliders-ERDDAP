@@ -1,4 +1,4 @@
-<!-- See ../datasets_example.xml for full annotation/reasoning -- this is the
+<!-- See ../datasets_example.xml for full annotation/reasoning — this is the
      bare fragment as axiom/docker-erddap's datasets.d mode expects: a raw
      <dataset> block, no <erddapDatasets> wrapper. Files here get sorted by
      path and concatenated into the real datasets.xml at container start. -->
@@ -208,6 +208,6 @@
   </dataVariable>
 
   <!-- ... repeat for pressure_qc, conductivity_qc, chlorophyll_qc,
-       oxygen_concentration_qc -- same pattern, only varname/long_name change ... -->
+       oxygen_concentration_qc — same pattern, only varname/long_name change ... -->
 
 </dataset>
