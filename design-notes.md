@@ -227,6 +227,63 @@ volume before any actual OGDP mission data shows up, or it'll fill the
 root disk. Creating/attaching this volume requires the NREC dashboard —
 not something doable from here without NREC credentials.
 
+### Verified end-to-end (2026-08-23)
+
+Deployed and debugged live on `nrec_erddap`, not just written and assumed
+correct. Three real bugs were caught and fixed in the process, all now
+pushed:
+
+1. **Bind-mounting the whole ERDDAP content directory broke startup** —
+   `NoSuchFileException` on `setup.xml`. A bind mount replaces a
+   directory's entire contents rather than adding to them, which hid the
+   image's baked-in default `setup.xml`. Fixed by not mounting that
+   directory at all (axiom's own docs say this is correct for `datasets.d`
+   mode) and relying on `ERDDAP_*` env vars instead.
+2. **XML comments in both dataset fragments used `--` as a dash separator**
+   — invalid per the XML spec (a literal double-hyphen inside a comment
+   body is disallowed), which made `xmlstarlet` reject both fragments
+   during `datasets.d` assembly. This was silent at the Docker level (both
+   containers reported healthy) and only visible in ERDDAP's own log —
+   worth remembering next time something looks up but a dataset doesn't.
+   Fixed with a script that only touches comment interiors, not the `<!--`
+   /`-->` delimiters, and validated with an actual XML parser before
+   pushing.
+3. **The griddap fragment was missing `<dataType>` on every axis/data
+   variable** (the tabledap fragment had it, griddap didn't) — surfaced as
+   `"Unspecified data type for var#0."` once the XML was valid. With no
+   real file yet to infer types from, ERDDAP has nothing to fall back on.
+   Fixed in both the deployed fragment and the reference copy.
+
+After those fixes, confirmed genuinely end-to-end rather than assumed:
+dropped one small synthetic NetCDF file (correct schema, obviously labeled
+as test data, since deleted) into the L1 `fileDir`, restarted the `erddap`
+container (dataset construction only fully retries on a *major* reload,
+which happens on container start — the `setDatasetFlag`/`allDatasets`
+mechanism only triggers *minor* reloads that don't retry previously-failed
+datasets), and confirmed:
+- `l1_durin_20240614T090000` tabledap went fully active (`HTTP 200` on
+  `.das`, and a real constrained data query — `?time,latitude,...&time>=...`
+  — returned correct subsetted rows).
+- **Reachable from outside NREC entirely**, not just `localhost` on the
+  server: `curl http://158.39.77.95/erddap/...` from an external network
+  returned `HTTP 200` — proves the whole chain (`erddap-web` security
+  group, dualStack networking, Caddy reverse proxy, Docker networking,
+  ERDDAP itself) actually works together, not just each piece in isolation.
+- Test file removed afterward; server is back to its honest state (both
+  datasets deferred/empty, waiting on real data + the Cinder volume).
+
+**L2 (griddap) was not re-verified with a real file** — only the
+`dataType` fix was confirmed to clear the earlier hard error; a synthetic
+grid file was not built to prove full activation the way L1 was. Worth
+doing the same test once real L2 output exists, since griddap's axis
+handling is more failure-prone than tabledap's.
+
+**Minor, non-blocking**: the container logs a `MailConnectException` every
+cycle (default report emails to a placeholder SMTP host from the image's
+defaults) — cosmetic log noise, not a functional issue. Worth either
+configuring real SMTP via `ERDDAP_email*` env vars or explicitly disabling
+it at some point, just to quiet the logs.
+
 ## Next steps
 
 1. ~~Provision the NREC instance~~ — done (`m1.medium`, dualStack).
