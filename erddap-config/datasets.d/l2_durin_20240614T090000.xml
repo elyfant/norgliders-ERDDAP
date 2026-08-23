@@ -19,6 +19,7 @@
   <axisVariable>
     <sourceName>time</sourceName>
     <destinationName>time</destinationName>
+    <dataType>double</dataType>
     <addAttributes>
       <att name="units">seconds since 1970-01-01T00:00:00Z</att>
       <att name="standard_name">time</att>
@@ -28,6 +29,7 @@
   <axisVariable>
     <sourceName>depth</sourceName>
     <destinationName>depth</destinationName>
+    <dataType>double</dataType>
     <addAttributes>
       <att name="units">m</att>
       <att name="standard_name">depth</att>
@@ -37,6 +39,7 @@
   <dataVariable>
     <sourceName>temperature</sourceName>
     <destinationName>temperature</destinationName>
+    <dataType>float</dataType>
     <addAttributes>
       <att name="units">Celsius</att>
       <att name="standard_name">sea_water_temperature</att>
@@ -47,6 +50,7 @@
   <dataVariable>
     <sourceName>salinity</sourceName>
     <destinationName>salinity</destinationName>
+    <dataType>float</dataType>
     <addAttributes>
       <att name="units">1</att>
       <att name="standard_name">sea_water_practical_salinity</att>
@@ -57,6 +61,7 @@
   <dataVariable>
     <sourceName>chlorophyll</sourceName>
     <destinationName>chlorophyll</destinationName>
+    <dataType>float</dataType>
     <addAttributes>
       <att name="units">mg m-3</att>
       <att name="standard_name">concentration_of_chlorophyll_in_sea_water</att>
