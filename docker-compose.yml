@@ -15,15 +15,24 @@ services:
       # instead of erroring on next reload.
       DATASETSD_MARK_REMOVED_DATASETS_INACTIVE: "1"
     volumes:
-      # All four of these are BIND MOUNTS to explicit host paths under
-      # /data -- deliberately not bare named volumes. /data is meant to be
-      # the mount point of a separate Cinder block volume (see
-      # design-notes.md), so growing that volume later requires zero
-      # changes here: the host path stays the same, only what's backing it
-      # changes. Using named volumes instead would put this data under
-      # /var/lib/docker on the 20GB root disk by default -- exactly the
-      # trap this setup avoids.
-      - /data/erddap/content:/usr/local/tomcat/content/erddap
+      # BIND MOUNTS to explicit host paths under /data -- deliberately not
+      # bare named volumes. /data is meant to be the mount point of a
+      # separate Cinder block volume (see design-notes.md), so growing that
+      # volume later requires zero changes here: the host path stays the
+      # same, only what's backing it changes. Using named volumes instead
+      # would put this data under /var/lib/docker on the 20GB root disk by
+      # default -- exactly the trap this setup avoids.
+      #
+      # Deliberately NOT mounting /usr/local/tomcat/content/erddap here.
+      # That directory ships a default setup.xml baked into the image;
+      # bind-mounting a host directory over it replaces the directory's
+      # entire contents (not merges into them), which hides that default
+      # and breaks startup (confirmed: NoSuchFileException on setup.xml).
+      # Axiom's own docs say this directly -- "When using datasets.d mode
+      # it is not necessary to mount the ERDDAP content directory at all."
+      # All setup.xml values we need (baseUrl, bigParentDirectory) are
+      # covered by the ERDDAP_* env vars below instead, which override the
+      # image's baked-in defaults without needing our own file.
       - /data/erddap/erddapData:/erddapData
       - /data/erddap/datasets.d:/datasets.d:ro
       - /data/ogdp/processed:/data/ogdp/processed:ro
