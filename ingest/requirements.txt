@@ -1,0 +1,4 @@
+xarray==2026.4.0
+netCDF4==1.7.4
+paramiko==5.0.0
+requests==2.34.2

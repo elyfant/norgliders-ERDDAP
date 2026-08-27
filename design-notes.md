@@ -321,6 +321,63 @@ chain and resource limits, not access control.
   memory limit already bounds the worst case. Worth revisiting if actual
   abuse/scraping traffic becomes a real pattern once this is public.
 
+## `ingest/` — L1/L2 → OGDB + ERDDAP pipeline (2026-08-25)
+
+Python CLI: given a real L1/L2 NetCDF file, classifies it
+(`inspect_netcdf.py`), registers its metadata in OGDB via the gateway API
+(`gateway_client.py`), and SFTPs it to this server (`sftp_transfer.py`),
+tied together by `ingest.py`. Dry-run by default, `--commit` to act —
+matching OGDB's own backfill-script convention.
+
+**Moved here from `ogdp`**, where it was originally built — consolidated
+into this repo instead, since ERDDAP-facing tooling split across two
+repos was confusing and this code is about getting finished output to a
+specific downstream consumer (this server), not part of OGDP's own job
+(processing raw glider data). Runs the same wherever it's actually
+executed regardless of which repo it's checked out from — e.g. from
+OGDP's own processing environment, which is where OGDB gateway access
+already legitimately exists (see the reasoning below, carried over from
+when this lived in `ogdp`).
+
+Key decisions, carried over from the original build:
+- **Gateway API, not raw Postgres** — `DatasetsService` in OGDB-portal
+  owns real domain logic (DM/PUB supersession, DTO validation,
+  version↔package integrity) that a direct-DB writer would have to
+  reimplement and risk drifting from. Compare `tracks`, which OGDP does
+  write to directly — that table has no such logic, this domain does.
+- **Config from `ingest/config.json`** (gitignored, `config.example.json`
+  committed as the template), not environment variables — flat, local to
+  this directory, not reaching into `ogdp`'s own `config/app.json` (that
+  cross-repo reach would itself have been exactly the kind of implicit
+  coupling worth avoiding by moving this code at all).
+- **`document_type = "<stage>_output"`** (`dm_output`/`pub_output`), not
+  `l1_output`/`l2_output` — matches what the gateway's `findDetail()`
+  already reads for the dashboard's "Internal download" indicator. A
+  single DM/PUB run can produce both an L1 and L2 file; which is which
+  lives in the stored `netcdf_metadata.level`, not the document type.
+- **Register the OGDB document before the SFTP transfer**, not after — a
+  failed transfer then leaves a visible gap (OGDB knows about a file
+  that isn't live yet) rather than the opposite failure mode (file live
+  on ERDDAP, OGDB never told), which is the actual failure mode this
+  pipeline exists to prevent.
+- **SFTP upload-to-temp-name + atomic `posix_rename`** — so ERDDAP's own
+  reload cycle can run mid-transfer and see either nothing or the
+  complete file, never a partial one.
+
+Corresponding changes elsewhere, already made: OGDB migration
+`xxxx_documents_netcdf_metadata` (adds `file_hash`/`file_size_bytes`/
+`netcdf_metadata` to `documents`); OGDB-portal gateway endpoint
+`POST /datasets/:missionId/documents`.
+
+**Not yet usable end-to-end** — same gaps as when this was in `ogdp`,
+unchanged by the move:
+- No service-account OGDB user yet (gateway only supports human password
+  login today).
+- No restricted SFTP-only key + chroot set up on this server yet.
+- Nothing on this server watches for a transferred file and handles the
+  dataset fragment/restart side — `ingest.py` only gets the file and the
+  OGDB record there.
+
 ## Next steps
 
 1. ~~Provision the NREC instance~~ — done (`m1.medium`, dualStack).

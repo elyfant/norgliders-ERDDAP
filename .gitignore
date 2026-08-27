@@ -1,0 +1,5 @@
+# Runtime configuration (never commit secrets)
+ingest/config.json
+
+__pycache__/
+*.pyc
