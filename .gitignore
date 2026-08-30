@@ -3,3 +3,7 @@ ingest/config.json
 
 __pycache__/
 *.pyc
+
+# Machine-local symlinks to sibling projects (absolute paths, won't resolve
+# on another machine/checkout) — see design-notes.md "Cross-project context".
+.claude/rules/

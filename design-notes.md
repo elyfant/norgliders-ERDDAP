@@ -12,6 +12,25 @@ NetCDF products per mission: L0 raw timeseries, L1 processed timeseries, L2
 gridded), following the same approach several colleague institutions already
 use (VOTO, IOOS Glider DAC, EGO) rather than inventing something new.
 
+## Cross-project context: norgliders (facility planning)
+
+`~/projects/norgliders` holds the facility-wide system map, open
+cross-repo dependency questions, and architecture decisions. Claude Code
+doesn't share memory or CLAUDE.md context across separate git repos, so
+without help a session working here has no way to know about decisions
+made there.
+
+Fix: a symlink into `.claude/rules/`, which Claude Code loads automatically
+every session. It's gitignored (machine-local, points at an absolute path
+that only resolves on this machine) — recreate it after a fresh clone or on
+a new machine:
+
+```bash
+mkdir -p .claude/rules
+ln -s ~/projects/norgliders/dependencies.md .claude/rules/norgliders-dependencies.md
+ln -s ~/projects/norgliders/decisions .claude/rules/norgliders-decisions
+```
+
 ## Core decision: ERDDAP, Option A (one dataset per mission per level)
 
 - **What ERDDAP actually is**: a Java web app (runs in Apache Tomcat), not an
