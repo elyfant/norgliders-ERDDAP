@@ -44,7 +44,16 @@ def _classify(dims: dict[str, int], global_attrs: dict[str, object], variables: 
     warnings: list[str] = []
 
     is_seaglider = "nodc_template_version" in global_attrs or "base_station_version" in global_attrs
-    has_trajectory_var = "trajectory" in variables
+    # pyglider's flat CF-DSG L1 marker is a scalar `trajectory` variable
+    # (cf_role=trajectory_id). slocum_data_processing's OG1 conversion step
+    # (og1/convert.py) renames this to `TRAJECTORY` -- as of 2026-09-12 that
+    # pipeline only persists L0 and OG1, so `TRAJECTORY` is what actually
+    # shows up now. Checked directly against a real OG1-converted file: the
+    # rename preserves cf_role, so this still works as the same marker.
+    traj_key = "TRAJECTORY" if "TRAJECTORY" in variables else ("trajectory" if "trajectory" in variables else None)
+    has_trajectory_var = traj_key is not None
+    # same OG1 rename affects the vertical grid dimension pyglider's L2 uses.
+    depth_key = "DEPTH" if "DEPTH" in dims else ("depth" if "depth" in dims else None)
 
     if is_seaglider:
         convention = "seaglider_basestation3"
@@ -66,19 +75,19 @@ def _classify(dims: dict[str, int], global_attrs: dict[str, object], variables: 
                 "mission-level scalar -- do not reuse the pyglider-style "
                 "EDDTableFromNcCFFiles fragment template as-is for this file."
             )
-    elif has_trajectory_var and variables["trajectory"].dims == ():
-        # Scalar `trajectory` + cf_role=trajectory_id is pyglider's own marker
-        # for its flat CF-DSG L1 output (confirmed against pyglider source:
-        # ncprocess.py writes exactly this). Deliberately not checking for a
-        # specific dimension name here (e.g. "time") -- pyglider's real
-        # dimension name for the point/obs axis hasn't actually been
-        # confirmed against a real file, only its variable names have.
+    elif has_trajectory_var and variables[traj_key].dims == ():
+        # Scalar `trajectory`/`TRAJECTORY` + cf_role=trajectory_id is
+        # pyglider's own marker for its flat CF-DSG L1 output (confirmed
+        # against pyglider source: ncprocess.py writes exactly this, and
+        # separately against a real OG1-converted file). Deliberately not
+        # checking for a specific point/obs dimension name (e.g. "time"/
+        # "TIME") -- only the variable name + cf_role marker.
         convention = "pyglider"
         level = "L1"
-    elif not has_trajectory_var and "depth" in dims and any(len(v.dims) == 2 for v in variables.values()):
+    elif not has_trajectory_var and depth_key and any(len(v.dims) == 2 for v in variables.values()):
         # L2 grid files carry no trajectory variable at all in how these
-        # fragments were designed -- a depth dimension plus any genuinely
-        # 2-D data variable is the signal instead.
+        # fragments were designed -- a depth/DEPTH dimension plus any
+        # genuinely 2-D data variable is the signal instead.
         convention = "pyglider"
         level = "L2"
     else:
@@ -86,7 +95,7 @@ def _classify(dims: dict[str, int], global_attrs: dict[str, object], variables: 
         level = "unknown"
         warnings.append(
             "Could not classify: no NODC/basestation3 marker global attrs, "
-            "and no scalar 'trajectory' variable with cf_role=trajectory_id."
+            "and no scalar 'trajectory'/'TRAJECTORY' variable with cf_role=trajectory_id."
         )
 
     return convention, level, warnings
