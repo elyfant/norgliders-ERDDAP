@@ -45,7 +45,8 @@ def _classify(dims: dict[str, int], global_attrs: dict[str, object], variables: 
 
     is_seaglider = "nodc_template_version" in global_attrs or "base_station_version" in global_attrs
     # pyglider's flat CF-DSG L1 marker is a scalar `trajectory` variable
-    # (cf_role=trajectory_id). slocum_data_processing's OG1 conversion step
+    # (cf_role=trajectory_id). norgliders-data-pipeline's (renamed from
+    # slocum_data_processing 2026-09-16) OG1 conversion step
     # (og1/convert.py) renames this to `TRAJECTORY` -- as of 2026-09-12 that
     # pipeline only persists L0 and OG1, so `TRAJECTORY` is what actually
     # shows up now. Checked directly against a real OG1-converted file: the
