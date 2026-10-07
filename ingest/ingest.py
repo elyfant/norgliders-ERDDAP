@@ -49,7 +49,12 @@ from sftp_transfer import upload
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("mission_id", type=int, help="OGDB mission id")
-    parser.add_argument("stage", choices=["DM", "PUB"], help="Processing maturity this file represents")
+    parser.add_argument(
+        "stage",
+        choices=["AUTO_QC", "MANUAL_QC"],
+        help="QC level of this file: AUTO_QC (reprocessed, automatic QC) or MANUAL_QC "
+        "(reprocessed, automatic + manual QC) -- OGDB's codes since 2026-10-07 (were DM/PUB)",
+    )
     parser.add_argument("path", help="Path to the local L1/L2 NetCDF file")
     parser.add_argument(
         "mission_slug",

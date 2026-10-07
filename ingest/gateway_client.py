@@ -1,7 +1,7 @@
 """Client for OGDB-portal's gateway API.
 
 The gateway (not raw Postgres) is the deliberate write path here --
-dataset-processing writes have real domain logic (DM/PUB supersession,
+dataset-processing writes have real domain logic (AUTO_QC/MANUAL_QC supersession,
 DTO validation, version<->package integrity, audit fields) living in
 DatasetsService, not just in the DB schema. Writing straight to Postgres
 would mean reimplementing that logic in Python and risking drift.
