@@ -5,5 +5,6 @@
   "sftpHost": "158.39.77.95",
   "sftpUser": "",
   "sftpKeyPath": "/path/to/restricted/sftp/key",
-  "remoteBasePath": "/data/ogdp/processed"
+  "remoteBasePath": "/data/ogdp/processed",
+  "projectsRoot": "/Data/gfi/projects"
 }

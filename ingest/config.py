@@ -40,4 +40,9 @@ def load_config() -> dict:
         "sftp_user": _require(config, "sftpUser"),
         "sftp_key_path": _require(config, "sftpKeyPath"),
         "remote_base_path": config.get("remoteBasePath", "/data/ogdp/processed"),
+        # Where the shared GFI projects folder is mounted on THIS machine.
+        # OGDB stores NetCDF paths relative to it (e.g.
+        # naco/data/delayed/095-.../basestation/x.nc), so they're the same
+        # for everyone; only the mount point is per-machine.
+        "projects_root": config.get("projectsRoot", "/Data/gfi/projects"),
     }
