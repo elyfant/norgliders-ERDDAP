@@ -388,14 +388,36 @@ Corresponding changes elsewhere, already made: OGDB migration
 `netcdf_metadata` to `documents`); OGDB-portal gateway endpoint
 `POST /datasets/:missionId/documents`.
 
-**Not yet usable end-to-end** — same gaps as when this was in `ogdp`,
-unchanged by the move:
-- No service-account OGDB user yet (gateway only supports human password
-  login today).
-- No restricted SFTP-only key + chroot set up on this server yet.
-- Nothing on this server watches for a transferred file and handles the
-  dataset fragment/restart side — `ingest.py` only gets the file and the
-  OGDB record there.
+**Team access set up (2026-10-09):** the two credential gaps above are
+closed, so any team member can now run `ingest.py` from their own machine
+— see `ingest/README.md` for the actual steps. What changed:
+- **No service account — each person logs in as themselves.** The gateway
+  only ever supported human password login (role `editor`/`admin`); rather
+  than build an API-key path, each team member's own portal login goes in
+  their own `config.json`, so `erddap_pushes.changed_by` records exactly
+  who pushed each file.
+- **Gateway reachable via SSH tunnel.** `nrec_app`'s `docker-compose.yml`
+  gateway service had no `ports:` entry at all — not even loopback, unlike
+  postgres. Added `127.0.0.1:3001:3001` (same loopback-only pattern as
+  postgres), so a team member tunnels through the `nrec_app` SSH access
+  they already have: `ssh -N -L 3001:localhost:3001 nrec_app`.
+- **Restricted SFTP account (`erddap-push`) on `nrec_erddap`.** SFTP-only
+  (`ForceCommand internal-sftp`, no shell), `ChrootDirectory
+  /data/ogdp/processed` — the chroot wall (that directory and its parents)
+  is root-owned per OpenSSH's requirement; `L1/`/`L2/` inside it are owned
+  by `erddap-push` so pushes can write/replace files. One shared keypair
+  for the team (attribution comes from the gateway login above, not SSH).
+  Because the chroot makes that directory the account's own `/`,
+  `config.json`'s `remoteBasePath` must be `""`, not the host path — see
+  the fix in `ingest/config.py`.
+
+**Still a gap:** nothing on this server watches for a transferred file and
+handles the dataset fragment/restart side — `ingest.py` only gets the file
+and the OGDB record there. Related: `ingest.py`/`sftp_transfer.py` never
+create remote directories, so a mission's first-ever push needs its
+`L1/<slug>`/`L2/<slug>` folders created by hand first (documented as a
+manual step in `ingest/README.md`, not yet scripted — see "Next steps" #5
+below, which this folds into).
 
 ## Next steps
 
