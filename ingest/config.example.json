@@ -1,10 +1,10 @@
 {
   "gatewayUrl": "http://localhost:3001",
-  "serviceEmail": "YOUR_OGDB_SERVICE_ACCOUNT_EMAIL",
-  "servicePassword": "YOUR_OGDB_SERVICE_ACCOUNT_PASSWORD",
+  "serviceEmail": "YOUR_OWN_PORTAL_EMAIL",
+  "servicePassword": "YOUR_OWN_PORTAL_PASSWORD",
   "sftpHost": "158.39.77.95",
-  "sftpUser": "",
-  "sftpKeyPath": "/path/to/restricted/sftp/key",
-  "remoteBasePath": "/data/ogdp/processed",
+  "sftpUser": "erddap-push",
+  "sftpKeyPath": "/path/to/erddap-push_rsa",
+  "remoteBasePath": "",
   "projectsRoot": "/Data/gfi/projects"
 }

@@ -39,7 +39,11 @@ def load_config() -> dict:
         "sftp_host": _require(config, "sftpHost"),
         "sftp_user": _require(config, "sftpUser"),
         "sftp_key_path": _require(config, "sftpKeyPath"),
-        "remote_base_path": config.get("remoteBasePath", "/data/ogdp/processed"),
+        # Path as the SFTP session itself sees it, not the host path -- the
+        # erddap-push account is chroot'd to /data/ogdp/processed on the
+        # server, so that directory IS its "/". Empty string is correct for
+        # that setup (remote_dir becomes "/L1/<slug>", not a doubled path).
+        "remote_base_path": config.get("remoteBasePath", ""),
         # Where the shared GFI projects folder is mounted on THIS machine.
         # OGDB stores NetCDF paths relative to it (e.g.
         # naco/data/delayed/095-.../basestation/x.nc), so they're the same
