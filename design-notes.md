@@ -451,6 +451,11 @@ that's live on ERDDAP (per OGDB's `erddap_pushes`). Decisions:
   below, it left cdm_data_type/cf_role unresolved and copied the instrument
   maker's metadata (APL-UW/NODC creator, references, titles), so those are
   set by the script instead.
+- **Deployed 2026-10-12**: all 75 load (about 3 minutes after a restart) and
+  each returns real data publicly with `trajectory` = mission name.
+  Testing tip: ask an L2 dataset for a *measured* variable (e.g. temperature)
+  -- requesting only time/position/depth returns "no matching results",
+  because removeMVRows drops depth bins without measurements.
 - The two August example datasets moved to `erddap-config/examples/` --
   in `datasets.d` they were deployed and always failed (deleted test data).
 

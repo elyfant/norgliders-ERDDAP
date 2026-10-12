@@ -152,8 +152,13 @@ container starts. `make_datasets.py` writes them for everything that's live:
 
 Then commit the changed files, and on `nrec_erddap` (as `ubuntu`):
 ```bash
-cd ~/norgliders-ERDDAP && git pull && cp erddap-config/datasets.d/*.xml /data/erddap/datasets.d/ && docker compose restart erddap
+cd ~/norgliders-ERDDAP && git pull && rsync -a --delete erddap-config/datasets.d/ /data/erddap/datasets.d/ && docker compose restart erddap
 ```
+`rsync --delete` makes the server's `datasets.d` an exact copy of the
+repo's, so a dataset removed from the repo also disappears from ERDDAP.
+After a restart ERDDAP first *defers* datasets it hasn't indexed yet
+("deferring loading this dataset until after loading other datasets")
+and loads them in a second pass -- that message is not a failure.
 ERDDAP takes a few minutes to load everything after a restart; its status
 page is http://158.39.77.95/erddap/status.html.
 
