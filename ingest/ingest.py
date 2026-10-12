@@ -31,7 +31,8 @@ What it does, in order (main() follows these steps one by one):
    can't.
 
 5. Upload it to ERDDAP under a FIXED name per mission and level,
-   <mission_slug>_<level>.nc, in <remoteBasePath>/<level>/<mission_slug>/.
+   <mission_slug>_<level>.nc, in <remoteBasePath>/<level>/<mission_slug>/ --
+   creating that folder first if this is the mission's first push.
    The upload goes to a temporary name and is renamed into place in one
    step (see sftp_transfer.py), so a better file replaces the previous one
    atomically: ERDDAP never sees two files, or half of one. The original
@@ -167,7 +168,8 @@ def main() -> None:
     print(f"  1. Register in OGDB: mission {args.mission_number}, stage={stage}, "
           f"document_type={stage.lower()}_output, file on ERDDAP {remote_path}")
     print(f"  2. Upload {path}")
-    print(f"       -> {config['sftp_host']}:{remote_path}  (replaces whatever was there)")
+    print(f"       -> {config['sftp_host']}:{remote_path}  (replaces whatever was there; "
+          f"creates {args.level}/{args.mission_slug}/ if it doesn't exist yet)")
     if args.confirm_live:
         print(f"  3. Record live on ERDDAP: level={args.level}, status={stage}, linked to {file_in_ogdb}")
     if not args.commit:
@@ -213,6 +215,8 @@ def main() -> None:
             f"transfer failed: {e}. OGDB already has the file registered but it is NOT on ERDDAP -- "
             "re-run to retry the upload."
         )
+    for d in transfer.created_dirs:
+        print(f"  created folder on ERDDAP: {d}")
     print(f"  transferred: {transfer.remote_path} ({transfer.file_size_bytes} bytes, sha256={transfer.file_hash})")
 
     # --- 6. Record it live, linked to its processing run -----------------

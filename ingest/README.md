@@ -111,20 +111,12 @@ after reprocessing) — it replaces whatever was there.
 
 ## First push for a brand-new mission
 
-`ingest.py` doesn't create directories on the server — only uploads into
-ones that already exist. For a mission that's never been pushed before,
-create its folders first with a plain `sftp` client (same restricted
-account, so this is safe):
-
-```bash
-sftp -i ~/.ssh/erddap-push_rsa erddap-push@158.39.77.95
-sftp> mkdir L1/<mission_slug>
-sftp> mkdir L2/<mission_slug>
-```
-
-(This is a known gap, not a workaround — see `design-notes.md`'s "Next
-steps" for turning per-mission ERDDAP setup into a scripted step instead of
-a manual one.)
+Nothing extra to do: on a mission's first push, `ingest.py` creates its
+`L1/<mission_slug>` or `L2/<mission_slug>` folder on the server before
+uploading (the dry-run plan says so, and the real run prints
+`created folder on ERDDAP: ...`). The restricted `erddap-push` account owns
+`L1/` and `L2/`, so it can create mission folders inside them — but
+nothing else.
 
 ## Troubleshooting
 
@@ -136,9 +128,9 @@ a manual one.)
   added on the server yet, or `sftpKeyPath` points at the wrong file (the
   `.pub` file, or your `ubuntu` admin key, instead of
   `~/.ssh/erddap-push_rsa`).
-- **SFTP "no such file" on upload** — the mission's `L1/<slug>` or
-  `L2/<slug>` folder doesn't exist yet on the server; see the section
-  above.
+- **SFTP "Permission denied" creating a folder** — the level or name in
+  the command is wrong (the account can only create folders inside `L1/`
+  and `L2/`); check the command.
 
 ## Managing team keys (for whoever administers `nrec_erddap`)
 

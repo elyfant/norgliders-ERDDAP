@@ -419,11 +419,9 @@ closed, so any team member can now run `ingest.py` from their own machine
 
 **Still a gap:** nothing on this server watches for a transferred file and
 handles the dataset fragment/restart side — `ingest.py` only gets the file
-and the OGDB record there. Related: `ingest.py`/`sftp_transfer.py` never
-create remote directories, so a mission's first-ever push needs its
-`L1/<slug>`/`L2/<slug>` folders created by hand first (documented as a
-manual step in `ingest/README.md`, not yet scripted — see "Next steps" #5
-below, which this folds into).
+and the OGDB record there. (`sftp_transfer.py` creates a mission's
+`L1/<slug>`/`L2/<slug>` folder on its first push since 2026-10-12 —
+previously a manual `sftp mkdir` step.)
 
 ## Next steps
 

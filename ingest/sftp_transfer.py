@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import os
 import posixpath
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import paramiko
 
@@ -32,6 +32,7 @@ class TransferResult:
     remote_path: str
     file_size_bytes: int
     file_hash: str
+    created_dirs: list[str] = field(default_factory=list)
 
 
 def sha256_of(local_path: str) -> str:
@@ -40,6 +41,25 @@ def sha256_of(local_path: str) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def ensure_remote_dir(sftp, remote_dir: str) -> list[str]:
+    """Create remote_dir and any missing parents (like `mkdir -p`); returns
+    the folders it created. A mission's first push needs its
+    <level>/<mission_slug> folder -- the restricted erddap-push account owns
+    L1/ and L2/ inside its chroot, so it can create those itself; anything
+    it may not create (e.g. a typo'd level) fails loudly with the server's
+    permission error rather than being worked around."""
+    created = []
+    path = "/" if remote_dir.startswith("/") else ""
+    for part in [p for p in remote_dir.split("/") if p]:
+        path = posixpath.join(path, part) if path else part
+        try:
+            sftp.stat(path)
+        except FileNotFoundError:
+            sftp.mkdir(path)
+            created.append(path)
+    return created
 
 
 def upload(
@@ -63,6 +83,7 @@ def upload(
         transport.connect(username=username, pkey=key)
         sftp = paramiko.SFTPClient.from_transport(transport)
         try:
+            created_dirs = ensure_remote_dir(sftp, remote_dir)
             sftp.put(local_path, remote_temp)
 
             remote_size = sftp.stat(remote_temp).st_size
@@ -80,5 +101,5 @@ def upload(
         transport.close()
 
     return TransferResult(
-        remote_path=remote_final, file_size_bytes=file_size, file_hash=file_hash
+        remote_path=remote_final, file_size_bytes=file_size, file_hash=file_hash, created_dirs=created_dirs
     )
