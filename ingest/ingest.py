@@ -47,6 +47,8 @@ What it does, in order (main() follows these steps one by one):
 
 Re-running for a mission is how ERDDAP gets updated when a better file
 appears (e.g. after reprocessing): the new best file replaces the old one.
+To push every mission at once, see batch_push.py -- it runs steps 2-6 here
+(push_file) for each mission's best L1 and L2.
 
 Configuration comes from ingest/config.json (see config.py), not
 environment variables -- needed for a dry run too, since step 1 asks OGDB
@@ -108,78 +110,58 @@ def stored_path(local_path: str, projects_root: str) -> str | None:
     return None if rel.startswith("..") else rel.replace(os.sep, "/")
 
 
-def main() -> None:
-    args = parse_args()
-    try:
-        config = load_config()
-    except (FileNotFoundError, ValueError) as e:
-        fail(str(e))
+class PushError(RuntimeError):
+    """A push stopped at one of steps 2-6; the message says where and why."""
 
-    # --- 1. Find the file in OGDB ---------------------------------------
-    client = GatewayClient(base_url=config["gateway_url"])
-    try:
-        client.login(config["service_email"], config["service_password"])
-        mission = client.find_mission_by_number(args.mission_number)
-    except GatewayError as e:
-        fail(str(e))
-    if mission is None:
-        fail(f"no mission with mission_number {args.mission_number} in OGDB")
+
+def push_file(client, config, mission, level, slug, path, stage, file_in_ogdb,
+              commit=False, confirm_live=False, log=print):
+    """Steps 2-6 for one mission and level, once step 1 has chosen the file:
+    check it, show the plan, and with commit register / upload / (with
+    confirm_live) record it live. Raises PushError instead of exiting, so
+    batch_push.py can carry on with the next file. Returns a short summary."""
     mission_id = mission["id"]
-    name = mission.get("stdMissionName") or mission.get("missionName")
-    print(f"Mission:    {args.mission_number} ({name}), OGDB id {mission_id}")
+    number = mission["missionNumber"]
 
-    if args.file:
-        path, stage = args.file, args.stage
-        file_in_ogdb = stored_path(path, config["projects_root"])
-        print(f"File:       {path}  (given with --file, stage {stage})")
-    else:
-        file_in_ogdb = mission.get(f"best{args.level}File")
-        stage = mission.get(f"best{args.level}Stage")
-        if not file_in_ogdb:
-            fail(f"OGDB has no {args.level} file recorded for mission {args.mission_number}")
-        path = os.path.join(config["projects_root"], file_in_ogdb)
-        print(f"Best {args.level}:    {file_in_ogdb}  (stage {stage})")
     if stage not in PUSHABLE_STAGES:
-        fail(f"the {args.level} file's stage is {stage}; only {', '.join(PUSHABLE_STAGES)} files are pushed")
-    if args.confirm_live and not file_in_ogdb:
-        fail("--confirm-live needs a file OGDB knows (inside the projects folder) to link the push to")
+        raise PushError(f"the {level} file's stage is {stage}; only {', '.join(PUSHABLE_STAGES)} files are pushed")
+    if confirm_live and not file_in_ogdb:
+        raise PushError("--confirm-live needs a file OGDB knows (inside the projects folder) to link the push to")
 
     # --- 2. Check the file ------------------------------------------------
     if not os.path.isfile(path):
-        fail(f"no such file on this machine: {path} (check projectsRoot in config.json)")
+        raise PushError(f"no such file on this machine: {path} (check projectsRoot in config.json)")
     report = inspect_netcdf(path)
-    print(f"Convention: {report.convention}")
-    print(f"Level:      {report.level}")
-    print(f"Dimensions: {report.dimensions}")
-    print(f"Variables:  {len(report.variables)}")
+    log(f"Convention: {report.convention}")
+    log(f"Level:      {report.level}")
+    log(f"Dimensions: {report.dimensions}")
+    log(f"Variables:  {len(report.variables)}")
     for w in report.warnings:
-        print(f"  WARNING: {w}")
-    if report.level != args.level:
-        fail(f"asked for {args.level}, but the file looks like {report.level} -- refusing to proceed")
+        log(f"  WARNING: {w}")
+    if report.level != level:
+        raise PushError(f"asked for {level}, but the file looks like {report.level} -- refusing to proceed")
     if report.convention == "unknown":
-        fail("could not classify the processing convention -- a human should look at this file first")
+        raise PushError("could not classify the processing convention -- a human should look at this file first")
 
     # --- 3. Show the plan -------------------------------------------------
-    remote_dir = f"{config['remote_base_path']}/{args.level}/{args.mission_slug}"
-    remote_filename = f"{args.mission_slug}_{args.level}.nc"
+    remote_dir = f"{config['remote_base_path']}/{level}/{slug}"
+    remote_filename = f"{slug}_{level}.nc"
     remote_path = f"{remote_dir}/{remote_filename}"
-    print()
-    print("Plan:")
-    print(f"  1. Register in OGDB: mission {args.mission_number}, stage={stage}, "
-          f"document_type={stage.lower()}_output, file on ERDDAP {remote_path}")
-    print(f"  2. Upload {path}")
-    print(f"       -> {config['sftp_host']}:{remote_path}  (replaces whatever was there; "
-          f"creates {args.level}/{args.mission_slug}/ if it doesn't exist yet)")
-    if args.confirm_live:
-        print(f"  3. Record live on ERDDAP: level={args.level}, status={stage}, linked to {file_in_ogdb}")
-    if not args.commit:
-        print()
-        print("Dry run -- nothing written. Pass --commit to actually do this.")
-        return
+    log("")
+    log("Plan:")
+    log(f"  1. Register in OGDB: mission {number}, stage={stage}, "
+        f"document_type={stage.lower()}_output, file on ERDDAP {remote_path}")
+    log(f"  2. Upload {path}")
+    log(f"       -> {config['sftp_host']}:{remote_path}  (replaces whatever was there; "
+        f"creates {level}/{slug}/ if it doesn't exist yet)")
+    if confirm_live:
+        log(f"  3. Record live on ERDDAP: level={level}, status={stage}, linked to {file_in_ogdb}")
+    if not commit:
+        return f"would push {stage} file"
 
     # --- 4. Register the file in OGDB (before the transfer) --------------
-    print()
-    print("Registering in OGDB...")
+    log("")
+    log("Registering in OGDB...")
     try:
         client.register_document(
             mission_id=mission_id,
@@ -196,11 +178,11 @@ def main() -> None:
             ),
         )
     except GatewayError as e:
-        fail(f"{e} -- nothing was transferred")
-    print("  registered.")
+        raise PushError(f"{e} -- nothing was transferred") from e
+    log("  registered.")
 
     # --- 5. Upload to ERDDAP (atomic replace) ----------------------------
-    print("Uploading via SFTP...")
+    log("Uploading via SFTP...")
     try:
         transfer = upload(
             local_path=path,
@@ -211,23 +193,64 @@ def main() -> None:
             key_path=config["sftp_key_path"],
         )
     except Exception as e:
-        fail(
+        raise PushError(
             f"transfer failed: {e}. OGDB already has the file registered but it is NOT on ERDDAP -- "
             "re-run to retry the upload."
-        )
+        ) from e
     for d in transfer.created_dirs:
-        print(f"  created folder on ERDDAP: {d}")
-    print(f"  transferred: {transfer.remote_path} ({transfer.file_size_bytes} bytes, sha256={transfer.file_hash})")
+        log(f"  created folder on ERDDAP: {d}")
+    log(f"  transferred: {transfer.remote_path} ({transfer.file_size_bytes} bytes, sha256={transfer.file_hash})")
 
     # --- 6. Record it live, linked to its processing run -----------------
-    if args.confirm_live:
+    if confirm_live:
         try:
-            client.confirm_erddap_push(
-                mission_id=mission_id, level=args.level, status=stage, file=file_in_ogdb
-            )
+            client.confirm_erddap_push(mission_id=mission_id, level=level, status=stage, file=file_in_ogdb)
         except GatewayError as e:
-            fail(f"{e} -- the file IS on ERDDAP, but OGDB doesn't record it as live yet")
-        print(f"  recorded live: level={args.level}, status={stage}, file={file_in_ogdb}")
+            raise PushError(f"{e} -- the file IS on ERDDAP, but OGDB doesn't record it as live yet") from e
+        log(f"  recorded live: level={level}, status={stage}, file={file_in_ogdb}")
+        return f"pushed {stage} file, recorded live"
+    return f"pushed {stage} file (not recorded live)"
+
+
+def main() -> None:
+    args = parse_args()
+    try:
+        config = load_config()
+    except (FileNotFoundError, ValueError) as e:
+        fail(str(e))
+
+    # --- 1. Find the file in OGDB ---------------------------------------
+    client = GatewayClient(base_url=config["gateway_url"])
+    try:
+        client.login(config["service_email"], config["service_password"])
+        mission = client.find_mission_by_number(args.mission_number)
+    except GatewayError as e:
+        fail(str(e))
+    if mission is None:
+        fail(f"no mission with mission_number {args.mission_number} in OGDB")
+    name = mission.get("stdMissionName") or mission.get("missionName")
+    print(f"Mission:    {args.mission_number} ({name}), OGDB id {mission['id']}")
+
+    if args.file:
+        path, stage = args.file, args.stage
+        file_in_ogdb = stored_path(path, config["projects_root"])
+        print(f"File:       {path}  (given with --file, stage {stage})")
+    else:
+        file_in_ogdb = mission.get(f"best{args.level}File")
+        stage = mission.get(f"best{args.level}Stage")
+        if not file_in_ogdb:
+            fail(f"OGDB has no {args.level} file recorded for mission {args.mission_number}")
+        path = os.path.join(config["projects_root"], file_in_ogdb)
+        print(f"Best {args.level}:    {file_in_ogdb}  (stage {stage})")
+
+    try:
+        push_file(client, config, mission, args.level, args.mission_slug, path, stage, file_in_ogdb,
+                  commit=args.commit, confirm_live=args.confirm_live)
+    except PushError as e:
+        fail(str(e))
+    if not args.commit:
+        print()
+        print("Dry run -- nothing written. Pass --commit to actually do this.")
 
 
 if __name__ == "__main__":

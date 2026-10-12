@@ -109,6 +109,26 @@ right:
 Re-run the same command any time a better file exists for a mission (e.g.
 after reprocessing) — it replaces whatever was there.
 
+## Pushing every mission at once
+
+`batch_push.py` runs the same steps for every mission's best L1 and L2 file
+in OGDB, using each mission's `std_mission_name` as its ERDDAP name:
+
+```bash
+.venv/bin/python batch_push.py              # dry run: checks every file, shows what would be pushed
+.venv/bin/python batch_push.py --commit     # push, and record each one live in OGDB
+```
+
+- Files already live on ERDDAP **and** still the best file are skipped, so
+  re-running it later only pushes what's new or better (e.g. after
+  reprocessing). `--force` pushes them again anyway.
+- Missions whose L1 is unusable (on the reprocessing list) have no L1 in
+  OGDB, so only their L2 is pushed.
+- One file failing doesn't stop the rest; the summary at the end lists
+  every failure, and the exit code is 1 if there were any.
+- `--mission N` (repeatable) and `--level L1|L2` narrow it down;
+  `--verbose` prints each file's full check and plan.
+
 ## First push for a brand-new mission
 
 Nothing extra to do: on a mission's first push, `ingest.py` creates its

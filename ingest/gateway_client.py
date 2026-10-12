@@ -70,6 +70,22 @@ class GatewayClient:
             raise GatewayError("not logged in -- call login() first")
         return {"Authorization": f"Bearer {self._token}"}
 
+    def list_missions(self) -> list[dict]:
+        """Every mission, with its best L1/L2 file and stage (GET /missions)."""
+        resp = requests.get(f"{self.base_url}/missions", headers=self._headers(), timeout=self.timeout)
+        if resp.status_code >= 400:
+            raise GatewayError(f"list missions failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def get_dataset_detail(self, mission_id: int) -> dict:
+        """The mission's dataset-processing detail (GET /datasets/:missionId),
+        including erddapL1File / erddapL2File: the internal file currently
+        live on ERDDAP for each level, or null."""
+        resp = requests.get(f"{self.base_url}/datasets/{mission_id}", headers=self._headers(), timeout=self.timeout)
+        if resp.status_code >= 400:
+            raise GatewayError(f"dataset detail failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
     def find_mission_by_number(self, mission_number: int) -> dict | None:
         """The mission whose missions.mission_number is `mission_number` (the
         facility's permanent mission number, the NNN- prefix of its data
@@ -78,10 +94,7 @@ class GatewayClient:
         bestL1File/bestL1Stage/bestL2File/bestL2Stage: the mission's best
         NetCDF per level from OGDB's mission_best_files view. None if no
         mission has that number."""
-        resp = requests.get(f"{self.base_url}/missions", headers=self._headers(), timeout=self.timeout)
-        if resp.status_code >= 400:
-            raise GatewayError(f"list missions failed: {resp.status_code} {resp.text}")
-        matches = [m for m in resp.json() if m.get("missionNumber") == mission_number]
+        matches = [m for m in self.list_missions() if m.get("missionNumber") == mission_number]
         return matches[0] if matches else None
 
     def register_document(
