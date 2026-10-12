@@ -56,18 +56,32 @@ def _classify(dims: dict[str, int], global_attrs: dict[str, object], variables: 
     # same OG1 rename affects the vertical grid dimension pyglider's L2 uses.
     depth_key = "DEPTH" if "DEPTH" in dims else ("depth" if "depth" in dims else None)
 
+    if not variables:
+        # Seen on real files: three ~370-byte Seaglider *timeseries.nc files
+        # (missions 005/010/011) with global attributes but no dimensions or
+        # variables at all. Never classify -- and so never push -- an empty
+        # file: it would replace a real dataset on ERDDAP with nothing.
+        return "unknown", "unknown", ["File contains no variables (empty) -- nothing to push."]
+
     if is_seaglider:
         convention = "seaglider_basestation3"
-        if "sg_data_point" in dims:
+        # Seaglider basestation files state what they are in the
+        # file_data_type global attribute -- in BOTH layouts found in the
+        # archive: the newer one (dims sg_data_point / profile+depth, every
+        # reprocessed_bs3 file) and the older one (missions 001-011, dims
+        # time / time+depth). Checked against all 95 Seaglider best files in
+        # OGDB: "timeseries" is always L1, "Up and Down profile" always L2.
+        # The dimension names stay as a fallback for files without it.
+        data_type = str(global_attrs.get("file_data_type", "")).strip().lower()
+        if data_type == "timeseries" or "sg_data_point" in dims:
             level = "L1"
-        elif "profile" in dims and "depth" in dims:
+        elif "profile" in data_type or ("profile" in dims and "depth" in dims):
             level = "L2"
         else:
             level = "unknown"
             warnings.append(
-                "Seaglider convention detected but neither 'sg_data_point' "
-                "(L1 timeseries) nor 'profile'+'depth' (L2 gridded profile) "
-                "dimensions were found."
+                f"Seaglider convention detected but file_data_type is {data_type!r} and "
+                "neither 'sg_data_point' (L1) nor 'profile'+'depth' (L2) dimensions were found."
             )
         traj_var = variables.get("trajectory")
         if traj_var and len(traj_var.dims) == 1 and dims.get(traj_var.dims[0], 0) > 1:
