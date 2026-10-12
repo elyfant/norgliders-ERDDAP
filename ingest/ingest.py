@@ -62,6 +62,7 @@ doesn't have to match the machine it runs on.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -142,6 +143,20 @@ def push_file(client, config, mission, level, slug, path, stage, file_in_ogdb,
         raise PushError(f"asked for {level}, but the file looks like {report.level} -- refusing to proceed")
     if report.convention == "unknown":
         raise PushError("could not classify the processing convention -- a human should look at this file first")
+    # Build what step 4 will send to OGDB now, so a dry run catches anything
+    # that can't be sent (it once found an unencodable NetCDF attribute only
+    # mid-batch, at --commit).
+    metadata = NetcdfMetadata(
+        level=report.level,
+        convention=report.convention,
+        dimensions=report.dimensions,
+        global_attrs=report.global_attrs,
+        variables={k: {"dims": list(v.dims), "dtype": v.dtype} for k, v in report.variables.items()},
+    )
+    try:
+        json.dumps(metadata.to_payload(), allow_nan=False)
+    except (TypeError, ValueError) as e:
+        raise PushError(f"the file's metadata can't be sent to OGDB: {e}") from e
 
     # --- 3. Show the plan -------------------------------------------------
     remote_dir = f"{config['remote_base_path']}/{level}/{slug}"
@@ -169,13 +184,7 @@ def push_file(client, config, mission, level, slug, path, stage, file_in_ogdb,
             file_reference=remote_path,
             file_hash=sha256_of(path),
             file_size_bytes=os.path.getsize(path),
-            metadata=NetcdfMetadata(
-                level=report.level,
-                convention=report.convention,
-                dimensions=report.dimensions,
-                global_attrs=report.global_attrs,
-                variables={k: {"dims": list(v.dims), "dtype": v.dtype} for k, v in report.variables.items()},
-            ),
+            metadata=metadata,
         )
     except GatewayError as e:
         raise PushError(f"{e} -- nothing was transferred") from e

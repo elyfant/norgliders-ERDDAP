@@ -20,10 +20,32 @@ scripts/set-user-password.ts) -- not something this client can do itself.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import requests
+
+
+def to_json(value: Any) -> Any:
+    """NetCDF attribute values -> plain JSON. xarray keeps NumPy's own types
+    (float32, int32, arrays, bytes), which json can't encode -- a Seaglider
+    file's float32 attribute crashed a batch push (2026-10-12). NaN/inf
+    become None: JSON has no NaN, and requests sends with allow_nan=False."""
+    if isinstance(value, dict):
+        return {str(k): to_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_json(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return to_json(value.tolist())
+    if isinstance(value, np.generic):
+        return to_json(value.item())
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 class GatewayError(RuntimeError):
@@ -39,13 +61,13 @@ class NetcdfMetadata:
     variables: dict[str, dict[str, Any]]
 
     def to_payload(self) -> dict:
-        return {
+        return to_json({
             "level": self.level,
             "convention": self.convention,
             "dimensions": self.dimensions,
             "globalAttrs": self.global_attrs,
             "variables": self.variables,
-        }
+        })
 
 
 class GatewayClient:

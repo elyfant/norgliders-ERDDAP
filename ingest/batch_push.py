@@ -107,6 +107,10 @@ def main() -> None:
                 failed.append((number, level, str(e)))
                 print(f"{label}: FAILED -- {e}")
                 continue
+            except Exception as e:  # anything unexpected: report it, carry on with the next file
+                failed.append((number, level, f"unexpected error: {type(e).__name__}: {e}"))
+                print(f"{label}: FAILED -- unexpected error: {type(e).__name__}: {e}")
+                continue
             done.append((number, level, result))
             print(f"{label}: {result}")
 
