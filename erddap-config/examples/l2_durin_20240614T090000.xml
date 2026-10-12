@@ -1,4 +1,4 @@
-<!-- See ../datasets_example.xml for full annotation/reasoning. -->
+<!-- Example only, not deployed (moved out of datasets.d 2026-10-12; its data was a deleted test file). See ../datasets_example.xml for full annotation/reasoning. -->
 <dataset type="EDDGridFromNcFiles" datasetID="l2_durin_20240614T090000" active="true">
 
   <reloadEveryNMinutes>1440</reloadEveryNMinutes>

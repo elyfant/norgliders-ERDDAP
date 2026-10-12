@@ -129,6 +129,34 @@ in OGDB, using each mission's `std_mission_name` as its ERDDAP name:
 - `--mission N` (repeatable) and `--level L1|L2` narrow it down;
   `--verbose` prints each file's full check and plan.
 
+## Making the data visible on ERDDAP
+
+A pushed file only appears on ERDDAP once ERDDAP has a **dataset
+description** for it: one small XML file per mission and level in
+`erddap-config/datasets.d/`, which ERDDAP joins into its config when its
+container starts. `make_datasets.py` writes them for everything that's live:
+
+```bash
+.venv/bin/python make_datasets.py --check   # what would change
+.venv/bin/python make_datasets.py           # write/refresh erddap-config/datasets.d/*.xml
+```
+
+- Dataset id = `<mission name>_l1` / `_l2` (e.g. `sg559_naco_lofoten_jul2012_l2`)
+  — part of the public URL, so **never rename a published one**.
+- Each dataset lists exactly the variables in its own file (missions carry
+  different sensors), with the facility's metadata instead of the
+  instrument maker's.
+- A file that would break ERDDAP is skipped with a reason (e.g. corrupted
+  time values).
+- It needs the same `config.json` and portal tunnel as the push scripts.
+
+Then commit the changed files, and on `nrec_erddap` (as `ubuntu`):
+```bash
+cd ~/norgliders-ERDDAP && git pull && cp erddap-config/datasets.d/*.xml /data/erddap/datasets.d/ && docker compose restart erddap
+```
+ERDDAP takes a few minutes to load everything after a restart; its status
+page is http://158.39.77.95/erddap/status.html.
+
 ## First push for a brand-new mission
 
 Nothing extra to do: on a mission's first push, `ingest.py` creates its

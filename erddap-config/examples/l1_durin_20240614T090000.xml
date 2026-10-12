@@ -1,4 +1,4 @@
-<!-- See ../datasets_example.xml for full annotation/reasoning — this is the
+<!-- Example only, not deployed (moved out of datasets.d 2026-10-12; its data was a deleted test file). See ../datasets_example.xml for full annotation/reasoning — this is the
      bare fragment as axiom/docker-erddap's datasets.d mode expects: a raw
      <dataset> block, no <erddapDatasets> wrapper. Files here get sorted by
      path and concatenated into the real datasets.xml at container start. -->

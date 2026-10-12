@@ -423,6 +423,37 @@ and the OGDB record there. (`sftp_transfer.py` creates a mission's
 `L1/<slug>`/`L2/<slug>` folder on its first push since 2026-10-12 —
 previously a manual `sftp mkdir` step.)
 
+## Seaglider dataset descriptions (2026-10-12)
+
+`ingest/make_datasets.py` writes one `datasets.d` file per mission x level
+that's live on ERDDAP (per OGDB's `erddap_pushes`). Decisions:
+
+- **datasetID = `<std_mission_name>_l1|_l2`** (Fiona, 2026-10-12): readable,
+  a mission's two datasets sort together, matches the folder names on the
+  server. It's in every public URL, so a published id is frozen even if the
+  mission's name is later corrected in OGDB (not yet enforced in code).
+- **`EDDTableFromMultidimNcFiles`, not griddap**: Seaglider L2 is
+  profile x depth with time/position *per profile*, not a regular grid; L1 is
+  one row per measurement. cdm_data_type Trajectory, with a constant
+  `trajectory` column (= mission name, `cf_role=trajectory_id`).
+  TrajectoryProfile would describe L2 better but needs a unique profile id
+  variable the files don't have -- a possible refinement.
+- **Built per file, not from fixed templates**: variables vary a lot between
+  missions (newer L2: 33 in every file, 68 more in some -- oxygen, optics,
+  derived). What's shared per layout (L1 / L2 newer / L2 older) is only the
+  dimensions and fixes the files need: the older layout (missions 001-011)
+  states times as bare "seconds" (epoch only in a `reference` note) and
+  lat/lon as "Decimal degrees" with non-standard standard_names.
+- Started from ERDDAP's own `GenerateDatasetsXml` run on one sample per
+  layout (run inside the container with a throwaway `ERDDAP_flagKeyKey` --
+  the tool refuses the default, and the running server gets its value at
+  startup in a way `docker compose exec` doesn't see). As warned in step 4
+  below, it left cdm_data_type/cf_role unresolved and copied the instrument
+  maker's metadata (APL-UW/NODC creator, references, titles), so those are
+  set by the script instead.
+- The two August example datasets moved to `erddap-config/examples/` --
+  in `datasets.d` they were deployed and always failed (deleted test data).
+
 ## Next steps
 
 1. ~~Provision the NREC instance~~ — done (`m1.medium`, dualStack).
