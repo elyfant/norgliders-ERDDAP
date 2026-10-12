@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import os
 import posixpath
+import time
 from dataclasses import dataclass, field
 
 import paramiko
@@ -62,7 +63,35 @@ def ensure_remote_dir(sftp, remote_dir: str) -> list[str]:
     return created
 
 
-def upload(
+# Connection failures worth retrying: the network dropping the connection
+# before or during login. Seen 2026-10-12: during a batch push (one new SSH
+# connection per file, ~21/minute) something between UiB and NREC reset 8
+# consecutive connections pre-auth ("Error reading SSH protocol banner ...
+# Connection reset by peer"; the ERDDAP VM logged "Connection reset by
+# <client> [preauth]" -- both ends saw the other hang up, so a middlebox
+# cut them), then let later ones through. Retrying the whole upload is safe:
+# it writes to a temp name and only renames into place once complete.
+RETRY_WAITS_SECONDS = (10, 30, 90)
+RETRYABLE = (paramiko.SSHException, EOFError, ConnectionError, TimeoutError, OSError)
+
+
+def upload(*args, retry_waits=RETRY_WAITS_SECONDS, log=print, **kwargs) -> TransferResult:
+    """_upload_once(), retried after a pause if the connection fails --
+    see RETRY_WAITS_SECONDS. Non-connection errors (e.g. a size mismatch, a
+    permission error creating a folder) are not retried."""
+    for attempt, wait in enumerate((*retry_waits, None), start=1):
+        try:
+            return _upload_once(*args, **kwargs)
+        except (PermissionError, FileNotFoundError):
+            raise
+        except RETRYABLE as e:
+            if wait is None or "size mismatch" in str(e):
+                raise
+            log(f"  connection failed ({e}); retrying in {wait}s (attempt {attempt + 1} of {len(retry_waits) + 1})")
+            time.sleep(wait)
+
+
+def _upload_once(
     local_path: str,
     remote_dir: str,
     remote_filename: str,

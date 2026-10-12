@@ -200,6 +200,7 @@ def push_file(client, config, mission, level, slug, path, stage, file_in_ogdb,
             host=config["sftp_host"],
             username=config["sftp_user"],
             key_path=config["sftp_key_path"],
+            log=print,  # retry notices always shown, even in batch_push's quiet mode
         )
     except Exception as e:
         raise PushError(
