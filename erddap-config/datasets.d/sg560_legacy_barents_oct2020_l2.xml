@@ -34,7 +34,7 @@
         <att name="Metadata_Conventions">null</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>=sg560_legacy_barents_oct2020</sourceName>
+        <sourceName>=&quot;sg560_legacy_barents_oct2020&quot;</sourceName>
         <destinationName>trajectory</destinationName>
         <dataType>String</dataType>
         <addAttributes>

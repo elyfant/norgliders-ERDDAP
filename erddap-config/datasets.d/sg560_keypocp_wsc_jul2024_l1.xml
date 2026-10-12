@@ -34,7 +34,7 @@
         <att name="Metadata_Conventions">null</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>=sg560_keypocp_wsc_jul2024</sourceName>
+        <sourceName>=&quot;sg560_keypocp_wsc_jul2024&quot;</sourceName>
         <destinationName>trajectory</destinationName>
         <dataType>String</dataType>
         <addAttributes>

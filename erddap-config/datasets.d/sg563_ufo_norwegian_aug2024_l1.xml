@@ -34,7 +34,7 @@
         <att name="Metadata_Conventions">null</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>=sg563_ufo_norwegian_aug2024</sourceName>
+        <sourceName>=&quot;sg563_ufo_norwegian_aug2024&quot;</sourceName>
         <destinationName>trajectory</destinationName>
         <dataType>String</dataType>
         <addAttributes>
@@ -355,6 +355,7 @@
         <dataType>float</dataType>
         <addAttributes>
             <att name="ioos_category">Salinity</att>
+            <att name="units">1e-3</att>
             <att name="long_name">salinity_adjusted</att>
         </addAttributes>
     </dataVariable>

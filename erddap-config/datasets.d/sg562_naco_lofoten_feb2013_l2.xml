@@ -34,7 +34,7 @@
         <att name="Metadata_Conventions">null</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>=sg562_naco_lofoten_feb2013</sourceName>
+        <sourceName>=&quot;sg562_naco_lofoten_feb2013&quot;</sourceName>
         <destinationName>trajectory</destinationName>
         <dataType>String</dataType>
         <addAttributes>
@@ -213,6 +213,7 @@
         <dataType>double</dataType>
         <addAttributes>
             <att name="ioos_category">Salinity</att>
+            <att name="units">1e-3</att>
             <att name="long_name">salinity</att>
         </addAttributes>
     </dataVariable>
@@ -222,6 +223,7 @@
         <dataType>double</dataType>
         <addAttributes>
             <att name="ioos_category">Salinity</att>
+            <att name="units">1e-3</att>
             <att name="long_name">not corrected for first-order lag</att>
         </addAttributes>
     </dataVariable>
@@ -286,6 +288,7 @@
         <dataType>double</dataType>
         <addAttributes>
             <att name="ioos_category">Temperature</att>
+            <att name="units">degree_C</att>
             <att name="long_name">corrected for first-order lag</att>
         </addAttributes>
     </dataVariable>
@@ -295,6 +298,7 @@
         <dataType>double</dataType>
         <addAttributes>
             <att name="ioos_category">Temperature</att>
+            <att name="units">degree_C</att>
             <att name="long_name">not corrected for first-order lag</att>
         </addAttributes>
     </dataVariable>
@@ -304,6 +308,7 @@
         <dataType>double</dataType>
         <addAttributes>
             <att name="ioos_category">Temperature</att>
+            <att name="units">degree_C</att>
             <att name="long_name">corrected for first-order lag</att>
         </addAttributes>
     </dataVariable>

@@ -136,6 +136,10 @@ def var_block(ds, name: str, layout: str, roles: dict) -> str | None:
         atts["units"] = EPOCH  # older layout: epoch stated only in `reference`
     elif units.startswith("seconds since 1970") and dest == "time":
         atts["units"] = EPOCH
+    if units.strip() == "C":
+        atts["units"] = "degree_C"  # older layout; not a recognised unit string
+    if dest.startswith("salinity") and units.strip().lower() in ("", "none"):
+        atts["units"] = "1e-3"  # older layout says "none"; newer files use 1e-3
     if dest == "time":
         atts.update({"standard_name": "time", "units": EPOCH})
     elif dest == "latitude":
@@ -197,7 +201,10 @@ def dataset_xml(m: dict, level: str, stage: str, local_path: str) -> tuple[str |
         "references": "null", "uuid": "null", "id": "null", "Metadata_Conventions": "null",
     }
     g_xml = "\n".join(f"        <att name={quoteattr(k)}>{escape(v)}</att>" for k, v in g.items())
-    trajectory = (f"    <dataVariable>\n        <sourceName>={escape(name)}</sourceName>\n"
+    # Fixed-value column: ERDDAP needs the value as a JSON-style string, i.e.
+    # in double quotes -- without them the column comes out empty (seen in
+    # the first deployment test, 2026-10-12).
+    trajectory = (f"    <dataVariable>\n        <sourceName>=&quot;{escape(name)}&quot;</sourceName>\n"
                   f"        <destinationName>trajectory</destinationName>\n        <dataType>String</dataType>\n"
                   f"        <addAttributes>\n            <att name=\"cf_role\">trajectory_id</att>\n"
                   f"            <att name=\"ioos_category\">Identifier</att>\n"

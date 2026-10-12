@@ -34,7 +34,7 @@
         <att name="Metadata_Conventions">null</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>=sg563_provolo_lofoten_jan2017</sourceName>
+        <sourceName>=&quot;sg563_provolo_lofoten_jan2017&quot;</sourceName>
         <destinationName>trajectory</destinationName>
         <dataType>String</dataType>
         <addAttributes>
