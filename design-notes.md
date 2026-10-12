@@ -431,7 +431,12 @@ that's live on ERDDAP (per OGDB's `erddap_pushes`). Decisions:
 - **datasetID = `<std_mission_name>_l1|_l2`** (Fiona, 2026-10-12): readable,
   a mission's two datasets sort together, matches the folder names on the
   server. It's in every public URL, so a published id is frozen even if the
-  mission's name is later corrected in OGDB (not yet enforced in code).
+  mission's name is later corrected in OGDB -- enforced since 2026-10-12:
+  `make_datasets.py --set-urls` stores the URL in OGDB
+  (`dataset_processing.erddap_l1_url/l2_url`, after checking it answers), and
+  from then on the id is read back from that URL, not recomputed. The
+  dataset's `fileDir` still follows the current name (= where
+  `batch_push.py` uploads).
 - **`EDDTableFromMultidimNcFiles`, not griddap**: Seaglider L2 is
   profile x depth with time/position *per profile*, not a regular grid; L1 is
   one row per measurement. cdm_data_type Trajectory, with a constant

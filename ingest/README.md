@@ -162,6 +162,15 @@ and loads them in a second pass -- that message is not a failure.
 ERDDAP takes a few minutes to load everything after a restart; its status
 page is http://158.39.77.95/erddap/status.html.
 
+Once it has loaded, store each dataset's public URL in OGDB -- that fills the
+portal's "NorGliders ERDDAP L1/L2" links:
+```bash
+.venv/bin/python make_datasets.py --set-urls
+```
+It checks every URL actually answers before storing it, and only changes
+those links. Once stored, a dataset's id is taken from its stored URL, so it
+stays the same even if the mission's name is later corrected in OGDB.
+
 ## First push for a brand-new mission
 
 Nothing extra to do: on a mission's first push, `ingest.py` creates its

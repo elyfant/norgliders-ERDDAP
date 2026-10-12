@@ -108,6 +108,20 @@ class GatewayClient:
             raise GatewayError(f"dataset detail failed: {resp.status_code} {resp.text}")
         return resp.json()
 
+    def set_erddap_url(self, mission_id: int, level: str, url: str) -> dict:
+        """Store the dataset's public ERDDAP URL for L1/L2 in OGDB
+        (dataset_processing.erddap_l1_url / erddap_l2_url) -- the portal's
+        "NorGliders ERDDAP" links. Only that field is changed."""
+        resp = requests.patch(
+            f"{self.base_url}/datasets/{mission_id}/references",
+            headers=self._headers(),
+            json={f"erddap{level}Url": url},
+            timeout=self.timeout,
+        )
+        if resp.status_code >= 400:
+            raise GatewayError(f"set ERDDAP URL failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
     def find_mission_by_number(self, mission_number: int) -> dict | None:
         """The mission whose missions.mission_number is `mission_number` (the
         facility's permanent mission number, the NNN- prefix of its data

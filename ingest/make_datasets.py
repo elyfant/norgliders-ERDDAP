@@ -13,7 +13,14 @@ where batch_push.py put it).
 Dataset id (decided 2026-10-12): <std_mission_name>_l1 / _l2, e.g.
 sg559_naco_lofoten_jul2012_l2 -- it becomes part of the public URL, so once a
 dataset is published its id must not change, even if the mission's name is
-later corrected in OGDB. (Not yet enforced; see design-notes.md.)
+later corrected in OGDB. Enforced via OGDB: once --set-urls has stored a
+dataset's URL (dataset_processing.erddap_l1_url / erddap_l2_url), the id is
+taken from that URL from then on, not recomputed from the name.
+
+--set-urls (after deploying to the server): for every dataset, checks the
+public ERDDAP URL actually answers, then stores it in OGDB -- the portal's
+"NorGliders ERDDAP L1/L2" links. A dataset that doesn't answer yet (not
+deployed, still loading) is reported and its URL left alone.
 
 Why built per file, not from fixed templates: missions carry different
 sensors -- among the 40 newer-layout L2 files only 33 variables are in all of
@@ -45,7 +52,10 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import re
 import sys
+
+import requests
 from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
 
@@ -172,10 +182,17 @@ def mission_text(m: dict, level: str, stage: str) -> tuple[str, str]:
     return title, summary
 
 
-def dataset_xml(m: dict, level: str, stage: str, local_path: str) -> tuple[str | None, str]:
+def dataset_id_for(m: dict, level: str, live: dict) -> str:
+    """The published id if OGDB already has the dataset's URL (frozen),
+    otherwise the naming rule <std_mission_name>_<level>."""
+    stored = live.get(f"erddap{level}Url") or ""
+    found = re.search(r"/tabledap/([A-Za-z][A-Za-z0-9_]*)\.html", stored)
+    return found.group(1) if found else f"{m['stdMissionName'].lower()}_{level.lower()}"
+
+
+def dataset_xml(m: dict, level: str, stage: str, local_path: str, dataset_id: str) -> tuple[str | None, str]:
     """-> (xml or None, note). note explains a skip."""
-    name = m["stdMissionName"].lower()
-    dataset_id = f"{name}_{level.lower()}"
+    name = m["stdMissionName"].lower()  # = the folder batch_push uploads into
     with Dataset(local_path) as ds:
         layout = layout_of(ds, level)
         roles = LAYOUTS[layout]
@@ -236,6 +253,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="report what would change, write nothing")
     parser.add_argument("--mission", type=int, action="append", metavar="NUMBER", help="only this mission (repeatable)")
+    parser.add_argument("--set-urls", action="store_true",
+                        help="after deploying: store each answering dataset's public URL in OGDB (portal links)")
     args = parser.parse_args()
     try:
         config = load_config()
@@ -249,7 +268,7 @@ def main() -> None:
         fail(str(e))
 
     wanted = set(args.mission or [])
-    keep, written, unchanged, skipped = set(), [], [], []
+    keep, written, unchanged, skipped, urls_set, not_answering = set(), [], [], [], [], []
     for m in sorted(missions, key=lambda m: m["missionNumber"]):
         if not (m.get("bestL1File") or m.get("bestL2File")) or (wanted and m["missionNumber"] not in wanted):
             continue
@@ -259,21 +278,44 @@ def main() -> None:
             if not live_file or not m.get("stdMissionName"):
                 continue  # nothing on ERDDAP for this level -> no dataset
             label = f"{m['missionNumber']:03d} {m['stdMissionName'].lower()} {level}"
-            xml, note = dataset_xml(m, level, stage, os.path.join(config["projects_root"], live_file))
+            dataset_id = dataset_id_for(m, level, live)
+            xml, note = dataset_xml(m, level, stage, os.path.join(config["projects_root"], live_file), dataset_id)
             if xml is None:
                 skipped.append((label, note))
                 print(f"{label}: {note}")
                 continue
-            path = DATASETS_D / f"{m['stdMissionName'].lower()}_{level.lower()}.xml"
+            path = DATASETS_D / f"{dataset_id}.xml"
             keep.add(path.name)
             if path.exists() and path.read_text() == xml:
                 unchanged.append(label)
-                continue
-            if not args.check:
-                DATASETS_D.mkdir(parents=True, exist_ok=True)
-                path.write_text(xml)
-            written.append(label)
-            print(f"{label}: {'would write' if args.check else 'wrote'} {path.name} ({note})")
+            else:
+                if not args.check:
+                    DATASETS_D.mkdir(parents=True, exist_ok=True)
+                    path.write_text(xml)
+                written.append(label)
+                print(f"{label}: {'would write' if args.check else 'wrote'} {path.name} ({note})")
+
+            if args.set_urls:
+                url = f"{config['erddap_url']}/tabledap/{dataset_id}.html"
+                if live.get(f"erddap{level}Url") == url:
+                    continue
+                try:
+                    answers = requests.get(f"{config['erddap_url']}/tabledap/{dataset_id}.das", timeout=60).status_code == 200
+                except requests.RequestException:
+                    answers = False
+                if not answers:
+                    not_answering.append(label)
+                    print(f"{label}: URL not stored -- {dataset_id} doesn't answer on ERDDAP yet (deployed? still loading?)")
+                    continue
+                if not args.check:
+                    try:
+                        client.set_erddap_url(m["id"], level, url)
+                    except GatewayError as e:
+                        not_answering.append(label)
+                        print(f"{label}: URL not stored -- {e}")
+                        continue
+                urls_set.append(label)
+                print(f"{label}: {'would store' if args.check else 'stored'} {url}")
 
     removed = []
     if not wanted:  # only prune on a full run
@@ -289,6 +331,9 @@ def main() -> None:
           f"{len(skipped)} skipped, {len(removed)} {'to remove' if args.check else 'removed'}")
     for label, note in skipped:
         print(f"  SKIPPED {label}: {note}")
+    if args.set_urls:
+        print(f"ERDDAP URLs {'to store' if args.check else 'stored'} in OGDB: {len(urls_set)}, "
+              f"not answering yet: {len(not_answering)}")
 
 
 if __name__ == "__main__":
