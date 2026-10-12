@@ -19,26 +19,63 @@ other or with your machine; this script is the thing that bridges them.
    .venv/bin/pip install -r requirements.txt
    ```
 
-2. **Your config file** — copy the template and fill it in:
+2. **Your own SFTP key** — everyone pushing has their own key for the
+   restricted `erddap-push` account on `nrec_erddap`, so one person's key
+   can be removed (laptop lost, someone leaves) without touching anyone
+   else's. Make it on your own machine, replacing `<yourname>` (e.g.
+   `ailin`):
+   ```bash
+   ssh-keygen -t rsa -b 4096 -N "" -C "erddap-push:<yourname>" -f ~/.ssh/erddap-push_rsa
+   ```
+   - **RSA**, because the upload code only loads RSA keys.
+   - **No passphrase** (`-N ""`), because the script can't stop to ask for
+     one. That's acceptable here: the file is readable only by you (check
+     with `ls -l ~/.ssh/erddap-push_rsa`, it should show `-rw-------`), and
+     the account it opens can do nothing but upload into one folder.
+   - This makes two files. `~/.ssh/erddap-push_rsa` is your **private**
+     key: it never leaves your machine — don't email or share it.
+     `~/.ssh/erddap-push_rsa.pub` is the **public** key: send that one to
+     whoever administers `nrec_erddap` (currently Fiona) so they can add it
+     — see "Managing team keys" below. It's safe to send by email or Teams.
+   - On Windows, the same command works in PowerShell (OpenSSH is built
+     in); the files land in `C:\Users\<you>\.ssh\`.
+
+   Once it's been added, test it — you should get an `sftp>` prompt and
+   nothing else (no shell):
+   ```bash
+   sftp -i ~/.ssh/erddap-push_rsa erddap-push@158.39.77.95
+   ```
+
+3. **Your config file** — copy the template and fill it in:
    ```bash
    cp config.example.json config.json   # gitignored, never commit this
    ```
    - `serviceEmail` / `servicePassword` — **your own portal login**, the
-     same one you use for the OGDB dashboard. No separate service account;
-     the gateway only knows human logins, so pushes get attributed to
-     whoever actually ran the script.
+     same email and password you use for the OGDB dashboard
+     (ogdb.gfi.uib.no). Despite the name, this has nothing to do with the
+     ERDDAP server: the script uses it to talk to OGDB on `nrec_app`
+     (through the tunnel in step 4). No separate service account; the
+     gateway only knows human logins, so pushes get attributed to whoever
+     actually ran the script.
    - `sftpUser` — `erddap-push`, a restricted account that can only SFTP
      into one directory on `nrec_erddap`, nothing else.
-   - `sftpKeyPath` — path to the `erddap-push` private key. Ask Fiona for
-     it (shared across the team; it's not personal like your portal
-     password).
+   - `sftpKeyPath` — full path to **your own private** key from step 2,
+     e.g. `/home/<you>/.ssh/erddap-push_rsa` — not the `.pub` file, and not
+     the key you use to SSH into the VMs as `ubuntu` (that admin key isn't
+     accepted by `erddap-push`, and shouldn't be used by a script anyway).
    - `remoteBasePath` — leave as `""`. The `erddap-push` account is
      chroot'd on the server, so its own `/` already is the right starting
      point — don't point this at a host path like `/data/ogdp/processed`.
    - `projectsRoot` — wherever `/Data/gfi/projects` is mounted on *your*
      machine (differs on Linux vs. a mapped Windows/Mac drive).
 
-3. **Gateway access** — the gateway API only listens on `nrec_app`'s own
+   `config.json` now holds your portal password, so make it readable only
+   by you:
+   ```bash
+   chmod 600 config.json
+   ```
+
+4. **Gateway access** — the gateway API only listens on `nrec_app`'s own
    loopback, not the network, so you reach it through an SSH tunnel using
    the same key you already use to SSH into `nrec_app`:
    ```bash
@@ -80,7 +117,7 @@ create its folders first with a plain `sftp` client (same restricted
 account, so this is safe):
 
 ```bash
-sftp -i /path/to/erddap-push_rsa erddap-push@158.39.77.95
+sftp -i ~/.ssh/erddap-push_rsa erddap-push@158.39.77.95
 sftp> mkdir L1/<mission_slug>
 sftp> mkdir L2/<mission_slug>
 ```
@@ -93,8 +130,51 @@ a manual one.)
 
 - **"no such file on this machine"** — check `projectsRoot` matches where
   the share is actually mounted on your machine.
-- **Gateway connection refused** — the SSH tunnel (step 3 above) isn't
+- **Gateway connection refused** — the SSH tunnel (step 4 above) isn't
   running, or died. Re-run the `ssh -N -L ...` command.
+- **SFTP "Permission denied (publickey)"** — your public key hasn't been
+  added on the server yet, or `sftpKeyPath` points at the wrong file (the
+  `.pub` file, or your `ubuntu` admin key, instead of
+  `~/.ssh/erddap-push_rsa`).
 - **SFTP "no such file" on upload** — the mission's `L1/<slug>` or
   `L2/<slug>` folder doesn't exist yet on the server; see the section
   above.
+
+## Managing team keys (for whoever administers `nrec_erddap`)
+
+The `erddap-push` account accepts any key listed in
+`/home/erddap-push/.ssh/authorized_keys` on `nrec_erddap` — one line per
+person, each ending in the label they chose (`erddap-push:<name>`). These
+commands run from your own machine, using your **admin** SSH login
+(`nrec_erddap`, as `ubuntu`), not the restricted account.
+
+**Add someone** — they send you their `erddap-push_rsa.pub`; save it, then:
+```bash
+ssh nrec_erddap "sudo tee -a /home/erddap-push/.ssh/authorized_keys > /dev/null" < /path/to/their/erddap-push_rsa.pub
+```
+`-a` appends, so nobody else's key is touched. Check their line is a
+single line starting with `ssh-rsa` and ending in `erddap-push:<name>`
+before adding — never add a private key (it starts with
+`-----BEGIN`).
+
+**See who has access:**
+```bash
+ssh nrec_erddap "sudo awk '{print \$NF}' /home/erddap-push/.ssh/authorized_keys"
+```
+
+**Remove someone** (lost laptop, left the team) — delete their line by
+its label, then put the file's ownership and permissions back (sshd
+refuses an `authorized_keys` that others can write to):
+```bash
+ssh nrec_erddap "sudo sed -i '/ erddap-push:<name>\$/d' /home/erddap-push/.ssh/authorized_keys && sudo chown erddap-push:erddap-push /home/erddap-push/.ssh/authorized_keys && sudo chmod 600 /home/erddap-push/.ssh/authorized_keys"
+```
+Removal takes effect for new connections immediately; nothing to restart.
+
+Their portal login is separate: removing their key stops them uploading,
+but to stop them recording pushes in OGDB as well, also disable their
+portal account.
+
+The original shared key (label `erddap-push@norgliders`, created
+2026-10-09) was lost before anyone used it — if it's still listed, remove
+it the same way, with `erddap-push@norgliders` in place of
+`erddap-push:<name>`.

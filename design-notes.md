@@ -405,8 +405,14 @@ closed, so any team member can now run `ingest.py` from their own machine
   (`ForceCommand internal-sftp`, no shell), `ChrootDirectory
   /data/ogdp/processed` — the chroot wall (that directory and its parents)
   is root-owned per OpenSSH's requirement; `L1/`/`L2/` inside it are owned
-  by `erddap-push` so pushes can write/replace files. One shared keypair
-  for the team (attribution comes from the gateway login above, not SSH).
+  by `erddap-push` so pushes can write/replace files. **One key per person**
+  (changed 2026-10-12 from the original single shared keypair, whose
+  private half was lost before first use): each team member generates their
+  own RSA key, labelled `erddap-push:<name>`, and the admin appends the
+  public half to `/home/erddap-push/.ssh/authorized_keys`, so one person
+  can be removed without re-keying everyone. Attribution of pushes still
+  comes from the gateway login above, not SSH. How-to (add / list /
+  remove): `ingest/README.md`, "Managing team keys".
   Because the chroot makes that directory the account's own `/`,
   `config.json`'s `remoteBasePath` must be `""`, not the host path — see
   the fix in `ingest/config.py`.
