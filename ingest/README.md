@@ -171,6 +171,30 @@ It checks every URL actually answers before storing it, and only changes
 those links. Once stored, a dataset's id is taken from its stored URL, so it
 stays the same even if the mission's name is later corrected in OGDB.
 
+## Updating the portal's mission data bundles
+
+The portal's mission data page (sections, T–S, profiles) doesn't read ERDDAP
+directly: it reads a compact **bundle** per mission (Zarr, ~1–12 MB),
+built from the L2 file live on ERDDAP. Spec:
+`OGDB-portal/docs/mission-data-bundle.md`. After pushing, run:
+
+```bash
+.venv/bin/python build_bundle.py              # dry run: which missions need a new bundle, and why
+.venv/bin/python build_bundle.py --commit     # build those and upload them to the portal
+```
+
+- A mission needs a new bundle when the portal has none, or has one built
+  from a different L2 than the one now live on ERDDAP. Everything else is
+  "up to date" and skipped; `--force` rebuilds anyway (e.g. after a change
+  to `build_bundle.py`).
+- Uploading needs your portal login to be **editor** or **admin**.
+- Bundles are also kept locally in `bundleDir` from `config.json`
+  (default `~/ogdb-bundles`). `--local --mission N` builds one without
+  touching the portal, to inspect it (e.g. with xarray:
+  `xr.open_zarr(".../public.zarr", consolidated=False)`).
+- Same conventions as `batch_push.py`: `--mission N` (repeatable), one
+  failure doesn't stop the rest, exit code 1 if any failed.
+
 ## First push for a brand-new mission
 
 Nothing extra to do: on a mission's first push, `ingest.py` creates its

@@ -178,3 +178,27 @@ class GatewayClient:
                 f"confirm_erddap_push failed: {resp.status_code} {resp.text}"
             )
         return resp.json()
+
+    def get_bundle_summary(self, mission_id: int) -> dict:
+        """The mission's data bundle as the portal has it (GET
+        /missions/:id/bundle): available, stale (built from a different L2
+        than the one live on ERDDAP), buildId, builtAt, sourceL2File."""
+        resp = requests.get(f"{self.base_url}/missions/{mission_id}/bundle", headers=self._headers(), timeout=self.timeout)
+        if resp.status_code >= 400:
+            raise GatewayError(f"bundle summary failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    def upload_bundle(self, mission_id: int, zip_path: str) -> dict:
+        """Upload a bundle.zip built by build_bundle.py (PUT /missions/:id/bundle,
+        multipart part "file"). The portal validates it and switches it in
+        atomically; returns the new summary."""
+        with open(zip_path, "rb") as f:
+            resp = requests.put(
+                f"{self.base_url}/missions/{mission_id}/bundle",
+                headers=self._headers(),
+                files={"file": ("bundle.zip", f, "application/zip")},
+                timeout=max(self.timeout, 300),  # up to a few hundred MB over the SSH tunnel
+            )
+        if resp.status_code >= 400:
+            raise GatewayError(f"bundle upload failed: {resp.status_code} {resp.text}")
+        return resp.json()

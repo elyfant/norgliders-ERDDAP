@@ -1,7 +1,10 @@
-"""Build the mission data bundle (Zarr) that feeds the portal's mission data page.
+"""Build the mission data bundles (Zarr) behind the portal's mission data page,
+and upload them to the portal.
 
-    python ingest/build_bundle.py --mission 23          # one mission
-    python ingest/build_bundle.py                       # every mission with an L2 live on ERDDAP
+    python ingest/build_bundle.py                      # dry run: which missions need a new bundle, and why
+    python ingest/build_bundle.py --commit             # build those and upload them
+    python ingest/build_bundle.py --mission 23 --commit --force   # rebuild + upload one, even if current
+    python ingest/build_bundle.py --local --mission 23 # just build locally to inspect, no portal check/upload
 
 Spec: OGDB-portal/docs/mission-data-bundle.md -- the contract with the UI.
 This script implements it; change the spec first, then this.
@@ -14,8 +17,14 @@ this machine, and writes to <bundleDir>/<NNN>-<mission name>/:
     staff.zarr/    raw + engineering variables, QC availability (staff only)
     bundle.zip     both stores, the upload body for the portal (spec 8.4)
 
-Not done here yet: uploading -- the portal endpoint (spec 8.4) doesn't exist
-yet. Until then this only writes local bundles.
+A mission needs a new bundle when the portal has none, or has one built
+from a different L2 file than the one now live on ERDDAP (e.g. after
+reprocessing + batch_push.py). So the routine is: batch_push.py --commit,
+then build_bundle.py --commit. Up-to-date missions are skipped; --force
+rebuilds them anyway (e.g. after a builder change). Like the push scripts:
+dry run by default, one mission failing doesn't stop the rest, exit code 1
+if anything failed. Needs ingest/config.json and the SSH tunnel to the
+portal API (see README.md); uploading needs an editor/admin login.
 
 What happens to the data (spec sections 3-6):
 - profile x 5 m level grid: mean of the source bins in each 5 m bin (older
@@ -460,11 +469,28 @@ def build_mission(m: dict, live: dict, projects_root: str, out_root: Path) -> di
             "layout": src["layout"], "cast": cast_note}
 
 
+def plan(client: GatewayClient, m: dict, live: dict, force: bool) -> str | None:
+    """Why this mission needs a new bundle, or None if the portal's is current."""
+    if force:
+        return "forced"
+    summary = client.get_bundle_summary(m["id"])
+    if not summary.get("available"):
+        return "no bundle in the portal yet"
+    if summary.get("sourceL2File") != live.get("erddapL2File"):
+        return f"portal's bundle is from {summary.get('sourceL2File')}, ERDDAP now has {live.get('erddapL2File')}"
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--mission", type=int, action="append", metavar="NUMBER", help="only this mission (repeatable)")
+    parser.add_argument("--commit", action="store_true", help="build and upload. Default is a dry run.")
+    parser.add_argument("--force", action="store_true", help="also rebuild missions whose bundle is current")
+    parser.add_argument("--local", action="store_true", help="build locally only: no portal check, no upload")
     parser.add_argument("--out", help="output folder (default: bundleDir in config.json, else ~/ogdb-bundles)")
     args = parser.parse_args()
+    if args.local and args.commit:
+        parser.error("--local and --commit don't go together")
     try:
         config = load_config()
     except (FileNotFoundError, ValueError) as e:
@@ -478,32 +504,49 @@ def main() -> None:
         sys.exit(f"ERROR: {e}")
 
     wanted = set(args.mission or [])
-    built, failed = [], []
+    done, current, failed = [], [], []
     for m in sorted(missions, key=lambda m: m["missionNumber"]):
-        if not m.get("bestL2File") or (wanted and m["missionNumber"] not in wanted) or not m.get("stdMissionName"):
+        if (wanted and m["missionNumber"] not in wanted) or not m.get("bestL2File") or not m.get("stdMissionName"):
             continue
         label = f"{m['missionNumber']:03d} {m['stdMissionName'].lower()}"
         try:
             live = client.get_dataset_detail(m["id"])
+            if not live.get("erddapL2File"):
+                continue  # nothing live on ERDDAP -> no bundle (spec 9)
+            reason = "local build" if args.local else plan(client, m, live, args.force)
+            if reason is None:
+                current.append(label)
+                print(f"{label}: up to date")
+                continue
+            if not (args.local or args.commit):
+                done.append((label, None))
+                print(f"{label}: would build and upload -- {reason}")
+                continue
             r = build_mission(m, live, config["projects_root"], out_root)
+            line = (f"{r['layout']}, {r['n_profile']} profiles x {r['n_level']} levels, "
+                    f"{r['n_public']} public + {r['n_staff']} staff variables, "
+                    f"public {r['public_mb']:.1f} MB, staff {r['staff_mb']:.1f} MB ({r['cast']})")
+            if args.commit:
+                summary = client.upload_bundle(m["id"], str(r["dir"] / "bundle.zip"))
+                line += f" -- uploaded, build {summary['buildId']} ({reason})"
+            done.append((label, r))
+            print(f"{label}: {line}")
         except (BuildError, GatewayError) as e:
             failed.append((label, str(e)))
             print(f"{label}: FAILED -- {e}")
-            continue
         except Exception as e:  # report, carry on
             failed.append((label, f"unexpected error: {type(e).__name__}: {e}"))
             print(f"{label}: FAILED -- unexpected error: {type(e).__name__}: {e}")
-            continue
-        built.append((label, r))
-        print(f"{label}: {r['layout']}, {r['n_profile']} profiles x {r['n_level']} levels, "
-              f"{r['n_public']} public + {r['n_staff']} staff variables, "
-              f"public {r['public_mb']:.1f} MB, staff {r['staff_mb']:.1f} MB ({r['cast']})")
 
     print()
-    total = sum(r["public_mb"] + r["staff_mb"] for _, r in built)
-    print(f"{len(built)} bundle(s) built in {out_root} ({total:.0f} MB in total), {len(failed)} failed")
+    verb = "built locally in " + str(out_root) if args.local else "built and uploaded" if args.commit else "would be built and uploaded"
+    print(f"{len(done)} bundle(s) {verb}, {len(current)} up to date, {len(failed)} failed")
+    if done and done[0][1] is not None:
+        print(f"  ({sum(r['public_mb'] + r['staff_mb'] for _, r in done):.0f} MB in total)")
     for label, why in failed:
         print(f"  FAILED {label}: {why}")
+    if not (args.local or args.commit):
+        print("Dry run -- nothing built or uploaded. Re-run with --commit.")
     if failed:
         sys.exit(1)
 

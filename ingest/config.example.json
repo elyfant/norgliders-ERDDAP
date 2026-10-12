@@ -7,5 +7,6 @@
   "sftpKeyPath": "/path/to/erddap-push_rsa",
   "remoteBasePath": "",
   "projectsRoot": "/Data/gfi/projects",
-  "erddapUrl": "http://158.39.77.95/erddap"
+  "erddapUrl": "http://158.39.77.95/erddap",
+  "bundleDir": "~/ogdb-bundles"
 }
