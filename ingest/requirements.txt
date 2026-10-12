@@ -3,3 +3,5 @@ netCDF4==1.7.4
 paramiko==5.0.0
 requests==2.34.2
 numpy
+zarr>=3,<4
+gsw

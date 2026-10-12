@@ -52,4 +52,6 @@ def load_config() -> dict:
         # The public ERDDAP address -- used to check a dataset answers
         # before its URL is stored in OGDB (make_datasets.py --set-urls).
         "erddap_url": config.get("erddapUrl", "http://158.39.77.95/erddap").rstrip("/"),
+        # Where build_bundle.py writes the mission data bundles (optional).
+        "bundle_dir": config.get("bundleDir"),
     }
