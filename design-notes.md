@@ -27,8 +27,8 @@ a new machine:
 
 ```bash
 mkdir -p .claude/rules
-ln -s ~/projects/norgliders/dependencies.md .claude/rules/norgliders-dependencies.md
-ln -s ~/projects/norgliders/decisions .claude/rules/norgliders-decisions
+ln -s ~/projects/norgliders-facility/norgliders/dependencies.md .claude/rules/norgliders-dependencies.md
+ln -s ~/projects/norgliders-facility/norgliders/decisions .claude/rules/norgliders-decisions
 ```
 
 ## Core decision: ERDDAP, Option A (one dataset per mission per level)
