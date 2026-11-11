@@ -167,8 +167,8 @@ def var_block(ds, name: str, layout: str, roles: dict) -> str | None:
 
 
 def mission_text(m: dict, level: str, stage: str) -> tuple[str, str]:
-    when = (m.get("launchDate") or "")[:7]
-    where = ", ".join(x for x in (m.get("project"), m.get("site")) if x)
+    when = (m.get("deploymentDate") or "")[:7]
+    where = ", ".join(x for x in (m.get("project"), m.get("observatory")) if x)
     glider = (m.get("glider") or "").upper()
     kind = "timeseries (L1)" if level == "L1" else "profiles (L2)"
     stage_text = {"BASESTATION": "basestation processing during the mission",
@@ -176,7 +176,7 @@ def mission_text(m: dict, level: str, stage: str) -> tuple[str, str]:
                   "MANUAL_QC": "post-mission reprocessing with automatic and manual QC"}.get(stage, stage)
     title = f"Seaglider {glider} {where} {when} -- {kind}"
     summary = (f"Seaglider {glider} mission {m['missionNumber']} ({m['stdMissionName']}), {where}, "
-               f"{(m.get('launchDate') or '?')[:10]} to {(m.get('recoveryDate') or '?')[:10]}. "
+               f"{(m.get('deploymentDate') or '?')[:10]} to {(m.get('retrievalDate') or '?')[:10]}. "
                f"{'Measurements along the glider path' if level == 'L1' else 'Binned up and down profiles'} "
                f"from {stage_text}. Operated by the {INSTITUTION}.")
     return title, summary

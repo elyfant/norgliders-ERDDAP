@@ -78,7 +78,7 @@ def main() -> None:
         number, slug = m["missionNumber"], (m.get("stdMissionName") or "").lower()
         if not slug:
             for level in levels:
-                failed.append((number, level, "mission has no std_mission_name in OGDB (glider/project/site/launch date missing)"))
+                failed.append((number, level, "mission has no std_mission_name in OGDB (glider/project/observatory/deployment date missing)"))
             continue
         try:
             live = client.get_dataset_detail(m["id"])
